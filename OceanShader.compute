@@ -2,16 +2,26 @@
 #pragma kernel FillVertexBuffer
 #pragma kernel FillTriangleBuffer
 #pragma kernel SimulateWaves
+#pragma kernel CalculateNormals
+#pragma kernel SimulateWaterColor
 
 // Parameters for setting up the vertex and triangle buffer
 RWStructuredBuffer<float3> vertexBuffer;
 RWStructuredBuffer<int> triangleBuffer;
+RWStructuredBuffer<float3> normalBuffer;
 float vertexSpread; 
 int oceanWidthVertexCount;
 int oceanLengthVertexCount;
 
 // Parameters for simulating waves
+float waveAmplitude;
+float waveFrequency;
+float waveSpeed;
 float time;
+
+// Parameters for wate shading
+Texture2D<float4> depthTexture;
+
 
 [numthreads(32,32,1)]
 void FillVertexBuffer (uint3 id : SV_DispatchThreadID) {
@@ -57,15 +67,50 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     int index = id.y * oceanWidthVertexCount + id.x;
     // Get the current position of the vertex
     float3 position = vertexBuffer[index];
-
+    
     // Calculate wave displacement using a sine function
-    float waveHeight = 1 * sin(1 * (position.x + position.z - 1 * time));
+    float waveHeight = waveAmplitude * sin(waveFrequency * (position.x + position.z - waveSpeed * time));
 
     // Update the vertex position with the new wave height
     position.y = waveHeight;
-
-    // Store the updated position back in the vertex buffer
     vertexBuffer[index] = position;
-
 }
 
+[numthreads(32,32,1)]
+void CalculateNormals (uint3 id : SV_DispatchThreadID) {
+    if (id.x >= (uint)oceanWidthVertexCount || id.y >= (uint)oceanLengthVertexCount) {
+        return;
+    }
+
+    // Calculate the index in the vertex buffer
+    int index = id.y * oceanWidthVertexCount + id.x;
+
+    // Get the current position of the vertex (already updated by the first pass)
+    float3 position = vertexBuffer[index];
+
+    // Calculate the normal for the current vertex based on its neighbors
+    float3 normal = float3(0.0, 1.0, 0.0);  // Default "flat" normal
+    if (id.x < (uint)(oceanWidthVertexCount - 1) && id.y < (uint)(oceanLengthVertexCount - 1)) {
+        // Get the neighboring vertices
+        float3 p0 = vertexBuffer[index]; // Current vertex (updated position)
+        float3 p1 = vertexBuffer[index + 1]; // Neighbor to the right
+        float3 p2 = vertexBuffer[index + oceanWidthVertexCount]; // Neighbor below
+
+        // Calculate the two edges of the triangle
+        float3 edge1 = p1 - p0;
+        float3 edge2 = p2 - p0;
+        normal = normalize(cross(edge1, edge2));
+    }
+
+    // Store the updated normal back in the normal buffer
+    normalBuffer[index] = normal;
+}
+
+[numthreads(32,32,1)]
+void SimulateWaterColor (uint3 id : SV_DispatchThreadID) {
+    if (id.x >= (uint)oceanWidthVertexCount || id.y >= (uint)oceanLengthVertexCount) {
+        return;
+    }
+    
+    
+}
