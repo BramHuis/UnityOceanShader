@@ -3,24 +3,20 @@
 #pragma kernel FillTriangleBuffer
 #pragma kernel SimulateWaves
 #pragma kernel CalculateNormals
-#pragma kernel SimulateWaterColor
 
-// Parameters for setting up the vertex and triangle buffer
+// Parameters for setting up the vertices and triangles
 RWStructuredBuffer<float3> vertexBuffer;
 RWStructuredBuffer<int> triangleBuffer;
-RWStructuredBuffer<float3> normalBuffer;
 float vertexSpread; 
 int oceanWidthVertexCount;
 int oceanLengthVertexCount;
 
 // Parameters for simulating waves
+RWStructuredBuffer<float3> normalBuffer;
 float waveAmplitude;
 float waveFrequency;
 float waveSpeed;
 float time;
-
-// Parameters for wate shading
-Texture2D<float4> depthTexture;
 
 
 [numthreads(32,32,1)]
@@ -104,13 +100,4 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
 
     // Store the updated normal back in the normal buffer
     normalBuffer[index] = normal;
-}
-
-[numthreads(32,32,1)]
-void SimulateWaterColor (uint3 id : SV_DispatchThreadID) {
-    if (id.x >= (uint)oceanWidthVertexCount || id.y >= (uint)oceanLengthVertexCount) {
-        return;
-    }
-    
-    
 }
