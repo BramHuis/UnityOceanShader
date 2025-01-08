@@ -1,13 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Rendering.Universal;
 
 public class Ocean : MonoBehaviour
 {
-    //require component toevoegen meshrenderer enzo
     [SerializeField] ComputeShader computeShader;
     [SerializeField] Material oceanMaterial;
+    [SerializeField] Texture2D noiseTexture;
 
     ComputeBuffer vertexBuffer;
     ComputeBuffer triangleBuffer;
@@ -17,6 +16,7 @@ public class Ocean : MonoBehaviour
     int kernelHandleFillTriangles;
     int kernelHandleSimulateWaves;
     int kernelHandleCalculateNormals;
+
 
     int numberOfVertices;
     int numberOfTriangleIndices;
@@ -30,19 +30,17 @@ public class Ocean : MonoBehaviour
     [Tooltip("Ocean mesh length"), Range(0.1f, 10), SerializeField]
     float vertexSpread;
 
-    [Header("Ocean wave parameters (can be adjusted during runtime)")]
-    [Tooltip("Wave amplitude"), Range(0.0f, 25.0f), SerializeField]
+    [Header("Ocean wave parameters")]
+    [Tooltip("Wave amplitude"), Range(0.0f, 50.0f), SerializeField]
     float waveAmplitude;
-    [Tooltip("Wave frequency"), Range(0.1f, 10f), SerializeField]
-    float waveFrequency;
-    [Tooltip("Wave speed"), Range(0f, 50), SerializeField]
-    float waveSpeed;
 
-    [Header("Ocean property parameters (can be adjusted during runtime)")]
+    [Header("Ocean property parameters")]
     [Tooltip("Shallow color"), SerializeField]
     Color shallowWaterColor;
     [Tooltip("Deep color"), SerializeField]
     Color deepWaterColor;
+    [Tooltip("Ocean color blend depth"), Range(0.1f, 200f), SerializeField]
+    float oceanColorBlendDepth;
     
 
     private void Start() {
@@ -81,6 +79,7 @@ public class Ocean : MonoBehaviour
         computeShader.SetBuffer(kernelHandleFillVertices, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleFillTriangles, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
+        computeShader.SetTexture(kernelHandleSimulateWaves, "noiseTexture", noiseTexture);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "normalBuffer", normalBuffer);
     }
@@ -90,7 +89,7 @@ public class Ocean : MonoBehaviour
         computeShader.SetInt("oceanWidthVertexCount", oceanWidth);
         computeShader.SetInt("oceanLengthVertexCount", oceanLength);
         computeShader.SetFloat("vertexSpread", vertexSpread);
-
+        
         computeShader.GetKernelThreadGroupSizes(kernelHandleFillVertices, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);
         computeShader.Dispatch(kernelHandleFillVertices, Mathf.CeilToInt((float)oceanWidth / dispatchGroupSizeX), Mathf.CeilToInt((float)oceanLength / dispatchGroupSizeY), 1);
         computeShader.GetKernelThreadGroupSizes(kernelHandleFillTriangles, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);
@@ -105,12 +104,11 @@ public class Ocean : MonoBehaviour
         oceanMaterial.SetBuffer("normalBuffer", normalBuffer);
         oceanMaterial.SetColor("shallowWaterColor", shallowWaterColor);
         oceanMaterial.SetColor("deepWaterColor", deepWaterColor);
+        oceanMaterial.SetFloat("oceanColorBlendDepth", oceanColorBlendDepth);
     }
 
     private void SetSimulateWaveParameters() {
         computeShader.SetFloat("waveAmplitude", waveAmplitude);
-        computeShader.SetFloat("waveFrequency", waveFrequency);
-        computeShader.SetFloat("waveSpeed", waveSpeed);
     }
 
     private void DispatchSimulateWaves() {
@@ -124,12 +122,10 @@ public class Ocean : MonoBehaviour
     }
 
     // Unity methods
-    // private void OnWillRenderObject () {
-    //     Debug.Log(Camera.current);
-    //     // if (Camera.current != Camera.main) {return;}
-    //     oceanMaterial.SetPass(0);
-    //     Graphics.DrawProceduralNow(MeshTopology.Triangles, numberOfTriangleIndices);
-    // }
+    private void OnRenderObject() {
+        oceanMaterial.SetPass(0);
+        Graphics.DrawProceduralNow(MeshTopology.Triangles, numberOfTriangleIndices);
+    }
     
     private void OnValidate() {
         SetSimulateWaveParameters();

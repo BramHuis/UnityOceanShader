@@ -13,9 +13,9 @@ int oceanLengthVertexCount;
 
 // Parameters for simulating waves
 RWStructuredBuffer<float3> normalBuffer;
+Texture2D noiseTexture;
+SamplerState samplerState;
 float waveAmplitude;
-float waveFrequency;
-float waveSpeed;
 float time;
 
 
@@ -53,6 +53,20 @@ void FillTriangleBuffer (uint3 id : SV_DispatchThreadID) {
     triangleBuffer[baseIndex + 5] = bottomLeft;
 }
 
+float OceanWaveHeight(float4 noise, float time) {
+
+    // Animate UVs independently for each layer
+    float layer1 = noise.r * 0.6; // Large swells
+    float layer2 = noise.g * 0.3; // Medium waves
+    float layer3 = noise.b * 0.2; // Choppy waves
+    float layer4 = noise.a * 0.1; // Fine ripples
+
+    float baseOffset = (0.6 + 0.3 + 0.2 + 0.1) * 0.5;
+
+    // Combine layers with weights
+    return (layer1 + layer2 + layer3 + layer4) / 1.2 - 0.5;
+}
+
 [numthreads(32,32,1)]
 void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     if (id.x >= (uint)oceanWidthVertexCount || id.y >= (uint)oceanLengthVertexCount) {
@@ -63,12 +77,16 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     int index = id.y * oceanWidthVertexCount + id.x;
     // Get the current position of the vertex
     float3 position = vertexBuffer[index];
-    
-    // Calculate wave displacement using a sine function
-    float waveHeight = waveAmplitude * sin(waveFrequency * (position.x + position.z - waveSpeed * time));
+
+    float2 uv = float2(id.x / (float)oceanWidthVertexCount, id.y / (float)oceanLengthVertexCount);
+    uint width, height;
+    noiseTexture.GetDimensions(width, height); // Get the texture dimensions
+    uint2 texCoord = uint2(uv * uint2(width, height));         // Map the UV to integer texture coordinates
+    float4 noise = noiseTexture.Load(int3(texCoord, 0)); 
 
     // Update the vertex position with the new wave height
-    position.y = waveHeight;
+    float waveHeight = OceanWaveHeight(noise, time);
+    position.y = 0.0 + waveHeight * waveAmplitude;
     vertexBuffer[index] = position;
 }
 
@@ -101,3 +119,4 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     // Store the updated normal back in the normal buffer
     normalBuffer[index] = normal;
 }
+
