@@ -1,3 +1,5 @@
+//https://adrianb.io/2014/08/09/perlinnoise.html Perlin Noise
+
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel FillVertexBuffer
 #pragma kernel FillTriangleBuffer
@@ -53,18 +55,49 @@ void FillTriangleBuffer (uint3 id : SV_DispatchThreadID) {
     triangleBuffer[baseIndex + 5] = bottomLeft;
 }
 
-float OceanWaveHeight(float4 noise, float time) {
+float fade(float t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
 
-    // Animate UVs independently for each layer
-    float layer1 = noise.r * 0.6; // Large swells
-    float layer2 = noise.g * 0.3; // Medium waves
-    float layer3 = noise.b * 0.2; // Choppy waves
-    float layer4 = noise.a * 0.1; // Fine ripples
+float grad(int hash, float2 p) {
+    // Hash is used to generate pseudo-random gradient directions
+    int h = hash & 15;
+    float2 g = (h < 8) ? float2(1.0, 0.0) : float2(0.0, 1.0); // Gradient directions
 
-    float baseOffset = (0.6 + 0.3 + 0.2 + 0.1) * 0.5;
+    // Return the dot product of the gradient and position vector `p`
+    return (h & 1 ? g.x : -g.x) * p.x + (h & 2 ? g.y : -g.y) * p.y;
+}
 
-    // Combine layers with weights
-    return (layer1 + layer2 + layer3 + layer4) / 1.2 - 0.5;
+float hash(int n) {
+    return frac(sin(n) * 43758.5453);
+}
+
+float perlinNoise(float2 p) {
+    // Grid cell coordinates
+    int2 pi = floor(p);
+    float2 pf = frac(p);
+
+    // Apply fade function to each component of the float2 separately
+    float2 u = float2(fade(pf.x), fade(pf.y));
+
+    // Hash values at grid points
+    int a = hash(pi.x + pi.y * 57);
+    int b = hash(pi.x + 1 + pi.y * 57);
+    int c = hash(pi.x + (pi.y + 1) * 57);
+    int d = hash(pi.x + 1 + (pi.y + 1) * 57);
+
+    // Gradient vectors at grid points
+    float gradA = grad(a, pf);
+    float gradB = grad(b, pf - float2(1.0, 0.0));
+    float gradC = grad(c, pf - float2(0.0, 1.0));
+    float gradD = grad(d, pf - float2(1.0, 1.0));
+
+    // Interpolation between grid points
+    float lerpX1 = lerp(gradA, gradB, u.x);
+    float lerpX2 = lerp(gradC, gradD, u.x);
+
+    // Final interpolation for 2D Perlin noise
+    return lerp(lerpX1, lerpX2, u.y);
 }
 
 [numthreads(32,32,1)]
@@ -78,15 +111,9 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     // Get the current position of the vertex
     float3 position = vertexBuffer[index];
 
-    float2 uv = float2(id.x / (float)oceanWidthVertexCount, id.y / (float)oceanLengthVertexCount);
-    uint width, height;
-    noiseTexture.GetDimensions(width, height); // Get the texture dimensions
-    uint2 texCoord = uint2(uv * uint2(width, height));         // Map the UV to integer texture coordinates
-    float4 noise = noiseTexture.Load(int3(texCoord, 0)); 
-
     // Update the vertex position with the new wave height
-    float waveHeight = OceanWaveHeight(noise, time);
-    position.y = 0.0 + waveHeight * waveAmplitude;
+    float waveHeight = perlinNoise(position.xy);
+    position.y = waveHeight * waveAmplitude;
     vertexBuffer[index] = position;
 }
 
