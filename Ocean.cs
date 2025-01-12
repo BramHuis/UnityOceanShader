@@ -17,22 +17,26 @@ public class Ocean : MonoBehaviour
     int kernelHandleSimulateWaves;
     int kernelHandleCalculateNormals;
 
-
     int numberOfVertices;
     int numberOfTriangleIndices;
     uint dispatchGroupSizeX, dispatchGroupSizeY;
 
     [Header("Ocean mesh parameters")]
-    [Tooltip("Ocean mesh width"), Range(2, 5000), SerializeField]
-    int oceanWidth;
-    [Tooltip("Ocean mesh length"), Range(2, 5000), SerializeField]
-    int oceanLength;
-    [Tooltip("Ocean mesh length"), Range(0.1f, 10), SerializeField]
-    float vertexSpread;
-
+    [Tooltip("Ocean width"), Range(0.1f, 10000), SerializeField]
+    float oceanWidth;
+    [Tooltip("Ocean length"), Range(0.1f, 10000), SerializeField]
+    float oceanLength;
+    [Tooltip("Number of ocean subdivisions"), Range(0, 13), SerializeField]
+    int oceanSubdivisions;
+    int numberOfVerticesPerSide;
+    
     [Header("Ocean wave parameters")]
-    [Tooltip("Wave amplitude"), Range(0.0f, 50.0f), SerializeField]
+    [Tooltip("Base wave amplitude"), Range(0.0f, 50.0f), SerializeField]
     float waveAmplitude;
+    [Tooltip("Wind direction (in degrees)"), Range(0.0f, 360.0f), SerializeField]
+    float windDirectionDegrees;
+    [Tooltip("Wind strength"), Range(0.0f, 5.0f), SerializeField]
+    float windStrength;
 
     [Header("Ocean property parameters")]
     [Tooltip("Shallow color"), SerializeField]
@@ -66,11 +70,13 @@ public class Ocean : MonoBehaviour
     private void InitializeBuffers()
     {
         // Set up the vertex buffer
-        numberOfVertices = oceanWidth * oceanLength;
+        numberOfVerticesPerSide = (1 << oceanSubdivisions) + 1;
+        numberOfVertices = numberOfVerticesPerSide * numberOfVerticesPerSide; // Always create the same number of vertices in x and z direction
+        Debug.Log($"The number of vertices in the ocean is {numberOfVertices}.");
         vertexBuffer = new ComputeBuffer(numberOfVertices, sizeof(float) * 3);
 
         // Set up the triangle buffer
-        numberOfTriangleIndices = (oceanWidth - 1) * (oceanLength - 1) * 6;
+        numberOfTriangleIndices = (numberOfVerticesPerSide - 1) * (numberOfVerticesPerSide - 1) * 6;
         triangleBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(int));
 
         normalBuffer = new ComputeBuffer(numberOfVertices, sizeof(float) * 3);
@@ -86,14 +92,15 @@ public class Ocean : MonoBehaviour
 
     private void GenerateOceanMeshData()
     {
-        computeShader.SetInt("oceanWidthVertexCount", oceanWidth);
-        computeShader.SetInt("oceanLengthVertexCount", oceanLength);
-        computeShader.SetFloat("vertexSpread", vertexSpread);
+        computeShader.SetInt("numberOfVerticesPerSide", numberOfVerticesPerSide);
+        computeShader.SetFloat("oceanWidth", oceanWidth);
+        computeShader.SetFloat("oceanLength", oceanLength);
+        computeShader.SetVector("oceanStartPosition", transform.position);
         
         computeShader.GetKernelThreadGroupSizes(kernelHandleFillVertices, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);
-        computeShader.Dispatch(kernelHandleFillVertices, Mathf.CeilToInt((float)oceanWidth / dispatchGroupSizeX), Mathf.CeilToInt((float)oceanLength / dispatchGroupSizeY), 1);
+        computeShader.Dispatch(kernelHandleFillVertices, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
         computeShader.GetKernelThreadGroupSizes(kernelHandleFillTriangles, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);
-        computeShader.Dispatch(kernelHandleFillTriangles, Mathf.CeilToInt((float)(oceanWidth - 1) / dispatchGroupSizeX), Mathf.CeilToInt((float)(oceanLength - 1) / dispatchGroupSizeY), 1);
+        computeShader.Dispatch(kernelHandleFillTriangles, Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeX), Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeY), 1);
     }
     
     private void SetUpWaveGenerationMaterialBuffers()
@@ -109,16 +116,29 @@ public class Ocean : MonoBehaviour
 
     private void SetSimulateWaveParameters() {
         computeShader.SetFloat("waveAmplitude", waveAmplitude);
+        computeShader.SetVector("windDirection", AngleToDirection(windDirectionDegrees));
+        computeShader.SetFloat("windStrength", windStrength);
+    }
+
+    public static Vector2 AngleToDirection(float angleDegrees) {
+        // Convert the angle from degrees to radians
+        float angleRadians = Mathf.PI * angleDegrees / 180f;  // MathF.PI for single precision (float)
+
+        // Calculate the normalized direction vector
+        float x = Mathf.Cos(angleRadians);
+        float y = Mathf.Sin(angleRadians);
+
+        return new Vector2(x, y);
     }
 
     private void DispatchSimulateWaves() {
         // Simulate the waves and afterwards recalculate the normals
         computeShader.SetFloat("time", Time.time);
         computeShader.GetKernelThreadGroupSizes(kernelHandleSimulateWaves, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);
-        computeShader.Dispatch(kernelHandleSimulateWaves, Mathf.CeilToInt((float)oceanWidth / dispatchGroupSizeX), Mathf.CeilToInt((float)oceanLength / dispatchGroupSizeY), 1);
+        computeShader.Dispatch(kernelHandleSimulateWaves, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
     
         computeShader.GetKernelThreadGroupSizes(kernelHandleCalculateNormals, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);    
-        computeShader.Dispatch(kernelHandleCalculateNormals, Mathf.CeilToInt((float)oceanWidth / dispatchGroupSizeX), Mathf.CeilToInt((float)oceanLength / dispatchGroupSizeY), 1);
+        computeShader.Dispatch(kernelHandleCalculateNormals, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
     }
 
     // Unity methods
