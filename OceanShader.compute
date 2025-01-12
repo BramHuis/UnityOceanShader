@@ -1,4 +1,4 @@
-//https://adrianb.io/2014/08/09/perlinnoise.html Perlin Noise
+//https://discussions.unity.com/t/how-to-acheive-flat-specular-highlights/853360
 
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel FillVertexBuffer
@@ -87,7 +87,7 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
 
     // Scroll the UVs based on time
     float2 windOffset = windDirection * time * windStrength;
-    float2 movingUV = uv += windOffset;
+    float2 movingUV = uv + windOffset;
 
     // Wrap the UVs to [0, 1] using frac
     uv = frac(movingUV);
@@ -98,7 +98,7 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     float4 noise = noiseTexture.Load(int3(texCoord, 0)); 
 
     float waveHeight = OceanWaveHeight(noise, time);
-    position.y = waveHeight * waveAmplitude;
+    waveHeight  = 1 * sin(1 * (position.x + position.z - 1 * time));
 
     position.y = waveHeight * waveAmplitude;
     vertexBuffer[index] = position;
@@ -106,32 +106,48 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
 
 [numthreads(32,32,1)]
 void CalculateNormals (uint3 id : SV_DispatchThreadID) {
-    if (id.x >= (uint)numberOfVerticesPerSide || id.y >= (uint)numberOfVerticesPerSide) {
+    if (id.x >= (uint)(numberOfVerticesPerSide - 1) || id.y >= (uint)(numberOfVerticesPerSide - 1)) {
         return;
     }
+    
+    // Calculate the base index for this quad's two triangles
+    int baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
 
-    // Calculate the index in the vertex buffer
-    int index = id.y * numberOfVerticesPerSide + id.x;
+    // First triangle (bottom-left, top-left, top-right)
+    int index0 = triangleBuffer[baseIndex];
+    int index1 = triangleBuffer[baseIndex + 1];
+    int index2 = triangleBuffer[baseIndex + 2];
 
-    // Get the current position of the vertex (already updated by the first pass)
-    float3 position = vertexBuffer[index];
+    // Get the positions of the vertices
+    float3 p0 = vertexBuffer[index0];
+    float3 p1 = vertexBuffer[index1];
+    float3 p2 = vertexBuffer[index2];
 
-    // Calculate the normal for the current vertex based on its neighbors
-    float3 normal = float3(0.0, 1.0, 0.0);  // Default "flat" normal
-    if (id.x < (uint)(numberOfVerticesPerSide - 1) && id.y < (uint)(numberOfVerticesPerSide - 1)) {
-        // Get the neighboring vertices
-        float3 p0 = vertexBuffer[index]; // Current vertex (updated position)
-        float3 p1 = vertexBuffer[index + 1]; // Neighbor to the right
-        float3 p2 = vertexBuffer[index + numberOfVerticesPerSide]; // Neighbor below
+    // Calculate the normal
+    float3 normal1 = normalize(cross(p2 - p0, p1 - p0));
 
-        // Calculate the two edges of the triangle
-        float3 edge1 = p1 - p0;
-        float3 edge2 = p2 - p0;
-        normal = normalize(cross(edge1, edge2));
-    }
+    // Assign the normal to the vertices of the first triangle
+    normalBuffer[baseIndex] = normal1;
+    normalBuffer[baseIndex + 1] = normal1;
+    normalBuffer[baseIndex + 2] = normal1;
 
-    // Store the updated normal back in the normal buffer
-    normalBuffer[index] = float3(0.0, -1.0, 0.0);
+    // Second triangle (top-right, bottom-right, bottom-left)
+    index0 = triangleBuffer[baseIndex + 3];
+    index1 = triangleBuffer[baseIndex + 4];
+    index2 = triangleBuffer[baseIndex + 5];
+
+    // Get the positions of the vertices
+    p0 = vertexBuffer[index0];
+    p1 = vertexBuffer[index1];
+    p2 = vertexBuffer[index2];
+
+    // Calculate the normal
+    float3 normal2 = normalize(cross(p2 - p0, p1 - p0));
+
+    // Assign the normal to the vertices of the second triangle
+    normalBuffer[baseIndex + 3] = normal2;
+    normalBuffer[baseIndex + 4] = normal2;
+    normalBuffer[baseIndex + 5] = normal2;
 }
 
 

@@ -26,7 +26,7 @@ public class Ocean : MonoBehaviour
     float oceanWidth;
     [Tooltip("Ocean length"), Range(0.1f, 10000), SerializeField]
     float oceanLength;
-    [Tooltip("Number of ocean subdivisions"), Range(0, 13), SerializeField]
+    [Tooltip("Number of ocean subdivisions"), Range(0, 12), SerializeField]
     int oceanSubdivisions;
     int numberOfVerticesPerSide;
     
@@ -45,6 +45,10 @@ public class Ocean : MonoBehaviour
     Color deepWaterColor;
     [Tooltip("Ocean color blend depth"), Range(0.1f, 200f), SerializeField]
     float oceanColorBlendDepth;
+    [Tooltip("Shininess of the specular highlights"), Range(0.1f, 40), SerializeField]
+    float specularHighlightShininess;
+    Vector3 mainLightDirection;
+
     
 
     private void Start() {
@@ -79,7 +83,7 @@ public class Ocean : MonoBehaviour
         numberOfTriangleIndices = (numberOfVerticesPerSide - 1) * (numberOfVerticesPerSide - 1) * 6;
         triangleBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(int));
 
-        normalBuffer = new ComputeBuffer(numberOfVertices, sizeof(float) * 3);
+        normalBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(float) * 3);
 
         // Bind the buffers to the kernel handles
         computeShader.SetBuffer(kernelHandleFillVertices, "vertexBuffer", vertexBuffer);
@@ -87,10 +91,11 @@ public class Ocean : MonoBehaviour
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
         computeShader.SetTexture(kernelHandleSimulateWaves, "noiseTexture", noiseTexture);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
+        computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "normalBuffer", normalBuffer);
     }
 
-    private void GenerateOceanMeshData()
+    private void GenerateOceanMeshData() 
     {
         computeShader.SetInt("numberOfVerticesPerSide", numberOfVerticesPerSide);
         computeShader.SetFloat("oceanWidth", oceanWidth);
@@ -105,13 +110,18 @@ public class Ocean : MonoBehaviour
     
     private void SetUpWaveGenerationMaterialBuffers()
     {
-        // Set the compute buffers to the vert/frag shaders
+        mainLightDirection = RenderSettings.sun.transform.forward;
+        Debug.Log(mainLightDirection);
+        // Set the data of the vert/frag shaders
         oceanMaterial.SetBuffer("vertexPositions", vertexBuffer);
         oceanMaterial.SetBuffer("triangleIndices", triangleBuffer);
         oceanMaterial.SetBuffer("normalBuffer", normalBuffer);
         oceanMaterial.SetColor("shallowWaterColor", shallowWaterColor);
         oceanMaterial.SetColor("deepWaterColor", deepWaterColor);
         oceanMaterial.SetFloat("oceanColorBlendDepth", oceanColorBlendDepth);
+        oceanMaterial.SetVector("mainLightDirection", mainLightDirection);
+        oceanMaterial.SetFloat("specularHighlightShininess", specularHighlightShininess);
+        
     }
 
     private void SetSimulateWaveParameters() {
@@ -149,6 +159,9 @@ public class Ocean : MonoBehaviour
     
     private void OnValidate() {
         SetSimulateWaveParameters();
+        mainLightDirection = RenderSettings.sun.transform.forward;
+        oceanMaterial.SetVector("mainLightDirection", mainLightDirection);
+        oceanMaterial.SetFloat("specularHighlightShininess", specularHighlightShininess);
     }
 
     private void OnDestroy() {

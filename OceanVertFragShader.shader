@@ -23,9 +23,12 @@ Shader "Unlit/OceanShader"
             StructuredBuffer<float3> vertexPositions;
             StructuredBuffer<int> triangleIndices;
             StructuredBuffer<float3> normalBuffer;
+
             float4 shallowWaterColor;
             float4 deepWaterColor;
             float oceanColorBlendDepth;
+            float3 mainLightDirection;
+            float specularHighlightShininess;
 
             sampler2D _CameraDepthTexture;
             
@@ -53,7 +56,6 @@ Shader "Unlit/OceanShader"
                 
                 o.vertex = UnityObjectToClipPos(vertexPosition);
                 
-                
                 float2 uvFlipped = (o.vertex.xy / o.vertex.w) * 0.5 + 0.5;
                 o.uv = float2(uvFlipped.x, 1.0 - uvFlipped.y);
                 
@@ -63,21 +65,23 @@ Shader "Unlit/OceanShader"
             } 
 
             fixed4 frag(v2f i) : SV_Target
-            {   
-                float3 lightDir = normalize(float3(0, -1.0, 0)); // Example light direction
+            {    
+                float3 lightDir = normalize(mainLightDirection); // Example light direction
                 float diffuse = max(dot(i.normal, lightDir), 0.0);
 
+                // Specular highlights
+                float3 viewDir = normalize(_WorldSpaceCameraPos - i.vertex.xyz);  // Direction to the camera
+                float3 halfwayDir = normalize(lightDir + viewDir);  // Halfway vector
+                float spec = pow(max(dot(i.normal, halfwayDir), 0.0), specularHighlightShininess);
+                fixed4 specularColor = float4(float3(1.0, 1.0, 1.0) * spec, 0.0);
+                return float4(spec, spec, spec, 1.0);
+
                 float nonOceanDepth = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv)); // Get the depth of all objects in the scene looking through the shader
-
                 float distanceThroughOcean = nonOceanDepth - i.oceanDistance; // Get the distance through the ocean to an object
-
-                if (distanceThroughOcean > oceanColorBlendDepth) { // If the distance is more than the oceanColorBlendDepth, the water is deep so color it with deepWaterColor
-                    return deepWaterColor * diffuse; 
-                } else {
-                    // Otherwise, interpolate between shallow and deep colors based on the distance
-                    float lerpFactor = distanceThroughOcean / oceanColorBlendDepth;
-                    return lerp(shallowWaterColor, deepWaterColor, lerpFactor) * diffuse;
-                }
+                float lerpFactor = saturate(distanceThroughOcean / oceanColorBlendDepth);
+                fixed4 waterColor = lerp(shallowWaterColor, deepWaterColor, lerpFactor);
+                waterColor.rgb *= diffuse;
+                return waterColor + specularColor;
             }
 
             ENDCG
