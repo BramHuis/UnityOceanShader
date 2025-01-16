@@ -1,5 +1,3 @@
-//https://discussions.unity.com/t/how-to-acheive-flat-specular-highlights/853360
-
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel FillVertexBuffer
 #pragma kernel FillTriangleBuffer
@@ -19,6 +17,7 @@ RWStructuredBuffer<float3> normalBuffer;
 Texture2D noiseTexture;
 SamplerState samplerState;
 float waveAmplitude;
+float waveFrequency;
 float time;
 float2 windDirection;
 float windStrength;
@@ -82,26 +81,28 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     // Get the current position of the vertex
     float3 position = vertexBuffer[index];
 
-    // Update the vertex position with the new wave height
-    float2 uv = float2(id.x / (float)numberOfVerticesPerSide, id.y / (float)numberOfVerticesPerSide);
-
-    // Scroll the UVs based on time
-    float2 windOffset = windDirection * time * windStrength;
-    float2 movingUV = uv + windOffset;
-
-    // Wrap the UVs to [0, 1] using frac
-    uv = frac(movingUV);
+    position.y = sin((position.x + position.z) * waveFrequency + time) * waveAmplitude + oceanStartPosition.y;
     
-    uint width, height;
-    noiseTexture.GetDimensions(width, height); // Get the texture dimensions
-    uint2 texCoord = uint2(uv * uint2(width, height)); // Map the UV to integer texture coordinates
-    float4 noise = noiseTexture.Load(int3(texCoord, 0)); 
 
-    float waveHeight = OceanWaveHeight(noise, time);
-    waveHeight  = 1 * sin(1 * (position.x + position.z - 1 * time));
+    // // Update the vertex position with the new wave height using the noise texture
+    // float2 uv = float2(id.x / (float)numberOfVerticesPerSide, id.y / (float)numberOfVerticesPerSide);
 
-    position.y = waveHeight * waveAmplitude;
+    // // Scroll the UVs based on time
+    // float2 windOffset = windDirection * time * windStrength;
+    // float2 movingUV = uv + windOffset;
+
+    // // Wrap the UVs to [0, 1] using frac
+    // uv = frac(movingUV);
+    
+    // uint width, height;
+    // noiseTexture.GetDimensions(width, height); // Get the texture dimensions
+    // uint2 texCoord = uint2(uv * uint2(width, height)); // Map the UV to integer texture coordinates
+    // float4 noise = noiseTexture.Load(int3(texCoord, 0)); 
+
+    // float waveHeight = OceanWaveHeight(noise, time) * waveAmplitude;
+    // position.y = oceanStartPosition.y + waveHeight;
     vertexBuffer[index] = position;
+    
 }
 
 [numthreads(32,32,1)]
@@ -112,6 +113,7 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     
     // Calculate the base index for this quad's two triangles
     uint baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
+    [unroll]
     for (int tri = 0; tri < 2; tri++) {
         int index0 = triangleBuffer[baseIndex + tri * 3];
         int index1 = triangleBuffer[baseIndex + tri * 3 + 1];

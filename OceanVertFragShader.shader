@@ -8,7 +8,6 @@ Shader "Unlit/OceanShader"
     SubShader
     {
         Tags {"RenderType" = "Transparent" "Queue" = "Transparent"}
-        // ZWrite Off
         ZTest LEqual
         Blend SrcAlpha OneMinusSrcAlpha
         
@@ -27,8 +26,11 @@ Shader "Unlit/OceanShader"
             float4 shallowWaterColor;
             float4 deepWaterColor;
             float oceanColorBlendDepth;
-            float3 mainLightDirection;
             float specularHighlightShininess;
+            float3 mainLightDirection;
+            float4 mainLightColor;
+            float4 ambientLight;
+            float ambientLightStrength;
 
             sampler2D _CameraDepthTexture;
             
@@ -69,20 +71,24 @@ Shader "Unlit/OceanShader"
             fixed4 frag(v2f i) : SV_Target
             {    
                 float3 lightDir = normalize(mainLightDirection); // Example light direction
-                float diffuse = max(dot(i.normal, lightDir), 0.0);
+                float diffuse = max(dot(i.normal, lightDir), 0.3);
 
                 // Specular highlights
                 float3 viewDir = normalize(i.worldPos - _WorldSpaceCameraPos);  // Direction to the camera
                 float3 halfwayDir = normalize(lightDir + viewDir);  // Halfway vector
                 float spec = pow(max(dot(i.normal, halfwayDir), 0.0), specularHighlightShininess);
-                fixed4 specularColor = float4(float3(1.0, 1.0, 1.0) * spec, 0.0);
+                fixed4 specularColor = mainLightColor * spec;
 
                 float nonOceanDepth = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv)); // Get the depth of all objects in the scene looking through the shader
                 float distanceThroughOcean = nonOceanDepth - i.oceanDistance; // Get the distance through the ocean to an object
-                float lerpFactor = saturate(distanceThroughOcean / oceanColorBlendDepth);
+                float lerpFactor = smoothstep(0.0, oceanColorBlendDepth, distanceThroughOcean);
                 fixed4 waterColor = lerp(shallowWaterColor, deepWaterColor, lerpFactor);
+
+                // Ambient light
+                waterColor.rgb += ambientLight.rgb * ambientLightStrength;
                 waterColor.rgb *= diffuse;
                 waterColor.rgb += specularColor.rgb;
+
                 return waterColor;
             }
 

@@ -31,8 +31,10 @@ public class Ocean : MonoBehaviour
     int numberOfVerticesPerSide;
     
     [Header("Ocean wave parameters")]
-    [Tooltip("Base wave amplitude"), Range(0.0f, 50.0f), SerializeField]
+    [Tooltip("Wave amplitude"), Range(0.0f, 50.0f), SerializeField]
     float waveAmplitude;
+    [Tooltip("Wave frequency"), Range(0.01f, 20.0f), SerializeField]
+    float waveFrequency;
     [Tooltip("Wind direction (in degrees)"), Range(0.0f, 360.0f), SerializeField]
     float windDirectionDegrees;
     [Tooltip("Wind strength"), Range(0.0f, 5.0f), SerializeField]
@@ -45,11 +47,17 @@ public class Ocean : MonoBehaviour
     Color deepWaterColor;
     [Tooltip("Ocean color blend depth"), Range(0.1f, 200f), SerializeField]
     float oceanColorBlendDepth;
+
+    [Header("Ocean lighting parameters")]
+    [Tooltip("Ambient color"), SerializeField]
+    Color ambientLight;
+    [Tooltip("Ambient color strength"), Range(0.0f, 1.0f),SerializeField]
+    float ambientLightStrength;
     [Tooltip("Shininess of the specular highlights"), Range(0.1f, 40), SerializeField]
     float specularHighlightShininess;
     Vector3 mainLightDirection;
+    Vector4 mainLightColor;
 
-    
 
     private void Start() {
         BindKernelHandles();
@@ -111,7 +119,8 @@ public class Ocean : MonoBehaviour
     private void SetUpWaveGenerationMaterialBuffers()
     {
         mainLightDirection = RenderSettings.sun.transform.forward;
-        Debug.Log(mainLightDirection);
+        mainLightColor = RenderSettings.sun.color;
+
         // Set the data of the vert/frag shaders
         oceanMaterial.SetBuffer("vertexPositions", vertexBuffer);
         oceanMaterial.SetBuffer("triangleIndices", triangleBuffer);
@@ -119,13 +128,16 @@ public class Ocean : MonoBehaviour
         oceanMaterial.SetColor("shallowWaterColor", shallowWaterColor);
         oceanMaterial.SetColor("deepWaterColor", deepWaterColor);
         oceanMaterial.SetFloat("oceanColorBlendDepth", oceanColorBlendDepth);
-        oceanMaterial.SetVector("mainLightDirection", mainLightDirection);
         oceanMaterial.SetFloat("specularHighlightShininess", specularHighlightShininess);
-        
+        oceanMaterial.SetVector("mainLightDirection", mainLightDirection);
+        oceanMaterial.SetVector("mainLightColor", mainLightColor);
+        oceanMaterial.SetVector("ambientLight", ambientLight);
+        oceanMaterial.SetFloat("ambientLightStrength", ambientLightStrength);   
     }
 
     private void SetSimulateWaveParameters() {
         computeShader.SetFloat("waveAmplitude", waveAmplitude);
+        computeShader.SetFloat("waveFrequency", waveFrequency);
         computeShader.SetVector("windDirection", AngleToDirection(windDirectionDegrees));
         computeShader.SetFloat("windStrength", windStrength);
     }
