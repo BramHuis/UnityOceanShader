@@ -111,43 +111,19 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     }
     
     // Calculate the base index for this quad's two triangles
-    int baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
+    uint baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
+    for (int tri = 0; tri < 2; tri++) {
+        int index0 = triangleBuffer[baseIndex + tri * 3];
+        int index1 = triangleBuffer[baseIndex + tri * 3 + 1];
+        int index2 = triangleBuffer[baseIndex + tri * 3 + 2];
 
-    // First triangle (bottom-left, top-left, top-right)
-    int index0 = triangleBuffer[baseIndex];
-    int index1 = triangleBuffer[baseIndex + 1];
-    int index2 = triangleBuffer[baseIndex + 2];
+        float3 p0 = vertexBuffer[index0];
+        float3 p1 = vertexBuffer[index1];
+        float3 p2 = vertexBuffer[index2];
 
-    // Get the positions of the vertices
-    float3 p0 = vertexBuffer[index0];
-    float3 p1 = vertexBuffer[index1];
-    float3 p2 = vertexBuffer[index2];
-
-    // Calculate the normal
-    float3 normal1 = normalize(cross(p2 - p0, p1 - p0));
-
-    // Assign the normal to the vertices of the first triangle
-    normalBuffer[baseIndex] = normal1;
-    normalBuffer[baseIndex + 1] = normal1;
-    normalBuffer[baseIndex + 2] = normal1;
-
-    // Second triangle (top-right, bottom-right, bottom-left)
-    index0 = triangleBuffer[baseIndex + 3];
-    index1 = triangleBuffer[baseIndex + 4];
-    index2 = triangleBuffer[baseIndex + 5];
-
-    // Get the positions of the vertices
-    p0 = vertexBuffer[index0];
-    p1 = vertexBuffer[index1];
-    p2 = vertexBuffer[index2];
-
-    // Calculate the normal
-    float3 normal2 = normalize(cross(p2 - p0, p1 - p0));
-
-    // Assign the normal to the vertices of the second triangle
-    normalBuffer[baseIndex + 3] = normal2;
-    normalBuffer[baseIndex + 4] = normal2;
-    normalBuffer[baseIndex + 5] = normal2;
+        float3 normal = normalize(cross(p2 - p0, p1 - p0));
+        normalBuffer[baseIndex / 3 + tri] = normal; // Store per-triangle normal
+    }
 }
 
 
