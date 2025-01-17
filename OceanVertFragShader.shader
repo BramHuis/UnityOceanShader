@@ -31,7 +31,9 @@ Shader "Unlit/OceanShader"
             float4 mainLightColor;
             float4 ambientLight;
             float ambientLightStrength;
-
+            float4 fresnelColor;
+            float fresnelPower;
+            
             sampler2D _CameraDepthTexture;
             
             struct appdata
@@ -71,7 +73,7 @@ Shader "Unlit/OceanShader"
             fixed4 frag(v2f i) : SV_Target
             {    
                 float3 lightDir = normalize(mainLightDirection); // Example light direction
-                float diffuse = max(dot(i.normal, lightDir), 0.3);
+                float diffuse = max(dot(i.normal, lightDir), 0.0);
 
                 // Specular highlights
                 float3 viewDir = normalize(i.worldPos - _WorldSpaceCameraPos);  // Direction to the camera
@@ -84,7 +86,9 @@ Shader "Unlit/OceanShader"
                 float lerpFactor = smoothstep(0.0, oceanColorBlendDepth, distanceThroughOcean);
                 fixed4 waterColor = lerp(shallowWaterColor, deepWaterColor, lerpFactor);
 
-                // Ambient light
+                // float fresnel = pow(1.0 - dot(viewDir, i.normal), fresnelPower);
+                // waterColor.rgb += fresnel * fresnelColor.rgb;
+                // Apply ambient lighting , diffuse lighting and specular hightlights
                 waterColor.rgb += ambientLight.rgb * ambientLightStrength;
                 waterColor.rgb *= diffuse;
                 waterColor.rgb += specularColor.rgb;

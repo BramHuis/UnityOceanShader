@@ -11,6 +11,8 @@ public class Ocean : MonoBehaviour
     ComputeBuffer vertexBuffer;
     ComputeBuffer triangleBuffer;
     ComputeBuffer normalBuffer;
+    Vector3 [] cpuNormals;
+    int [] cpuTriangleIndices;
 
     int kernelHandleFillVertices;
     int kernelHandleFillTriangles;
@@ -55,6 +57,10 @@ public class Ocean : MonoBehaviour
     float ambientLightStrength;
     [Tooltip("Shininess of the specular highlights"), Range(0.1f, 40), SerializeField]
     float specularHighlightShininess;
+    [Tooltip("Fresnel color"), SerializeField]
+    Color fresnelColor;
+    [Tooltip("Fresnel strength"), SerializeField]
+    float fresnelPower;
     Vector3 mainLightDirection;
     Vector4 mainLightColor;
 
@@ -68,6 +74,9 @@ public class Ocean : MonoBehaviour
 
     private void Update() {
         DispatchSimulateWaves();
+        if(Input.GetKeyDown(KeyCode.Space)) {
+            CheckNormals();
+        }
     }
 
     private void BindKernelHandles()
@@ -90,9 +99,10 @@ public class Ocean : MonoBehaviour
         // Set up the triangle buffer
         numberOfTriangleIndices = (numberOfVerticesPerSide - 1) * (numberOfVerticesPerSide - 1) * 6;
         triangleBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(int));
-
+        cpuTriangleIndices = new int[numberOfTriangleIndices];
         normalBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(float) * 3);
-
+        Debug.Log(numberOfTriangleIndices);
+        cpuNormals = new Vector3[numberOfTriangleIndices];
         // Bind the buffers to the kernel handles
         computeShader.SetBuffer(kernelHandleFillVertices, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleFillTriangles, "triangleBuffer", triangleBuffer);
@@ -132,7 +142,9 @@ public class Ocean : MonoBehaviour
         oceanMaterial.SetVector("mainLightDirection", mainLightDirection);
         oceanMaterial.SetVector("mainLightColor", mainLightColor);
         oceanMaterial.SetVector("ambientLight", ambientLight);
-        oceanMaterial.SetFloat("ambientLightStrength", ambientLightStrength);   
+        oceanMaterial.SetFloat("ambientLightStrength", ambientLightStrength);
+        oceanMaterial.SetVector("fresnelColor", fresnelColor);   
+        oceanMaterial.SetFloat("fresnelPower", fresnelPower);
     }
 
     private void SetSimulateWaveParameters() {
@@ -160,25 +172,39 @@ public class Ocean : MonoBehaviour
         computeShader.Dispatch(kernelHandleSimulateWaves, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
     
         computeShader.GetKernelThreadGroupSizes(kernelHandleCalculateNormals, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);    
-        computeShader.Dispatch(kernelHandleCalculateNormals, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
+        computeShader.Dispatch(kernelHandleCalculateNormals, Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeX), Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeY), 1);
     }
 
     // Unity methods
     private void OnRenderObject() {
+        SetUpWaveGenerationMaterialBuffers();
         oceanMaterial.SetPass(0);
         Graphics.DrawProceduralNow(MeshTopology.Triangles, numberOfTriangleIndices);
     }
     
     private void OnValidate() {
         SetSimulateWaveParameters();
-        mainLightDirection = RenderSettings.sun.transform.forward;
-        oceanMaterial.SetVector("mainLightDirection", mainLightDirection);
-        oceanMaterial.SetFloat("specularHighlightShininess", specularHighlightShininess);
+        SetUpWaveGenerationMaterialBuffers();
+
     }
 
     private void OnDestroy() {
         vertexBuffer.Dispose();
         triangleBuffer.Dispose();
         normalBuffer.Dispose();
+    }
+
+    private void CheckNormals() {
+        normalBuffer.GetData(cpuNormals);
+        Debug.Log($"Number of normals: {cpuNormals.Length}");
+        for (int i = 0; i < cpuNormals.Length; i++) {
+            Debug.Log(cpuNormals[i]);
+        }
+
+        triangleBuffer.GetData(cpuTriangleIndices);
+        Debug.Log($"Number of triangle indices: {cpuTriangleIndices.Length}");
+        for (int i = 0; i < cpuTriangleIndices.Length; i++) {
+            Debug.Log(cpuTriangleIndices[i]);
+        }
     }
 }

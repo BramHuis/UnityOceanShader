@@ -124,7 +124,9 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
         float3 p2 = vertexBuffer[index2];
 
         float3 normal = normalize(cross(p2 - p0, p1 - p0));
-        normalBuffer[baseIndex / 3 + tri] = normal; // Store per-triangle normal
+        normalBuffer[baseIndex + tri * 3] = normal;  // Store normal for vertex 0
+        normalBuffer[baseIndex + tri * 3 + 1] = normal;  // Store normal for vertex 1
+        normalBuffer[baseIndex + tri * 3 + 2] = normal; // Store per-triangle normal
     }
 }
 
