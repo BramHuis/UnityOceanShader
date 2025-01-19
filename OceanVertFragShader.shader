@@ -72,8 +72,6 @@ Shader "Unlit/OceanShader"
 
             fixed4 frag(v2f i) : SV_Target
             {    
-                // float3 normalColor = 0.5 * (i.normal + 1.0);
-                // return fixed4(normalColor, 1.0);
                 float3 lightDir = normalize(mainLightDirection); // Example light direction
                 float diffuse = max(dot(i.normal, lightDir), 0.0);
 
@@ -88,9 +86,6 @@ Shader "Unlit/OceanShader"
                 float lerpFactor = smoothstep(0.0, oceanColorBlendDepth, distanceThroughOcean);
                 fixed4 waterColor = lerp(shallowWaterColor, deepWaterColor, lerpFactor);
 
-                float fresnel = pow(1.0 - dot(viewDir, i.normal), fresnelPower);
-
-                waterColor.rgb += fresnel * fresnelColor.rgb;
                 waterColor.rgb *= diffuse;
                 waterColor.rgb += ambientLight.rgb * ambientLightStrength;
                 waterColor.rgb += specularColor.rgb;

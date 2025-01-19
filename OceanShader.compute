@@ -14,13 +14,23 @@ float oceanLength;
 
 // Parameters for simulating waves
 RWStructuredBuffer<float3> normalBuffer;
-Texture2D noiseTexture;
-SamplerState samplerState;
+// Texture2D noiseTexture;
+// SamplerState samplerState;
 float waveAmplitude;
-float waveFrequency;
-float time;
+float waveSteepness;
+float wavePhaseShift;
+float waveLength;
 float2 windDirection;
-float windStrength;
+float time;
+
+#define PI 3.14159265359
+
+struct GerstnerWave {
+    float amplitude;
+    float wavelength;
+    float2 direction;
+    float phaseShift;
+};
 
 
 [numthreads(32,32,1)]
@@ -30,8 +40,8 @@ void FillVertexBuffer (uint3 id : SV_DispatchThreadID) {
     }
 
     int index = id.y * numberOfVerticesPerSide + id.x;
-    float xStep = oceanWidth / numberOfVerticesPerSide;
-    float zStep = oceanLength / numberOfVerticesPerSide;
+    float xStep = oceanWidth / (numberOfVerticesPerSide - 1);
+    float zStep = oceanLength / (numberOfVerticesPerSide - 1);
     vertexBuffer[index] = float3(oceanStartPosition.x + id.x * xStep, oceanStartPosition.y, oceanStartPosition.z + id.y * zStep);
 }
 
@@ -59,15 +69,30 @@ void FillTriangleBuffer (uint3 id : SV_DispatchThreadID) {
     triangleBuffer[baseIndex + 5] = bottomRight;
 }
 
-float OceanWaveHeight(float4 noise, float time) {
-    // Animate UVs independently for each layer
-    float layer1 = noise.r * 0.6; // Large swells
-    float layer2 = noise.g * 0.3; // Medium waves
-    float layer3 = noise.b * 0.2; // Choppy waves
-    float layer4 = noise.a * 0.1; // Fine ripples
-    float baseOffset = (0.6 + 0.3 + 0.2 + 0.1) * 0.5;
-    // Combine layers with weights
-    return (layer1 + layer2 + layer3 + layer4) / 1.2 - 0.5;
+float3 gerstner(float3 vertex, float2 direction, float time, float amplitude, float wavelength, float waveSteepness, float wavePhaseShift)
+{
+    // Compute the wave number (k = 2 * pi / wavelength)
+    float k = 2.0 * PI / wavelength;
+    
+    // Compute the dot product between the wave direction and the position in the xz-plane
+    float dotProduct = dot(direction, vertex.xz);
+    
+    // Compute the wave phase based on the wave number, dot product, and time
+    float wavePhase = k * dotProduct + time + wavePhaseShift;
+    
+    // Calculate the horizontal displacement for the x and z axes
+    // The horizontal displacement depends on both amplitude, steepness, and wavelength
+    float horizontalDisplacement = (amplitude / wavelength) * cos(wavePhase) * waveSteepness;
+    
+    // Apply the displacement in the x and z directions
+    float displaced_x = vertex.x + direction.x * horizontalDisplacement;
+    float displaced_z = vertex.z + direction.y * horizontalDisplacement;
+    
+    // Vertical displacement based on the sine wave
+    float displaced_y = vertex.y + amplitude * sin(wavePhase);
+    
+    // Return the displaced position
+    return float3(displaced_x, displaced_y, displaced_z);
 }
 
 [numthreads(32,32,1)]
@@ -76,33 +101,14 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
         return;
     }
 
+    
     // Calculate the index in the vertex buffer
     int index = id.y * numberOfVerticesPerSide + id.x;
-    // Get the current position of the vertex
-    float3 position = vertexBuffer[index];
+    float xStep = oceanWidth / (numberOfVerticesPerSide - 1);
+    float zStep = oceanLength / (numberOfVerticesPerSide - 1);
+    float3 originalVertexPos = float3(oceanStartPosition.x + id.x * xStep, oceanStartPosition.y, oceanStartPosition.z + id.y * zStep);
 
-    position.y = sin((position.x + position.z) * waveFrequency + time) * waveAmplitude + oceanStartPosition.y;
-    
-
-    // // Update the vertex position with the new wave height using the noise texture
-    // float2 uv = float2(id.x / (float)numberOfVerticesPerSide, id.y / (float)numberOfVerticesPerSide);
-
-    // // Scroll the UVs based on time
-    // float2 windOffset = windDirection * time * windStrength;
-    // float2 movingUV = uv + windOffset;
-
-    // // Wrap the UVs to [0, 1] using frac
-    // uv = frac(movingUV);
-    
-    // uint width, height;
-    // noiseTexture.GetDimensions(width, height); // Get the texture dimensions
-    // uint2 texCoord = uint2(uv * uint2(width, height)); // Map the UV to integer texture coordinates
-    // float4 noise = noiseTexture.Load(int3(texCoord, 0)); 
-
-    // float waveHeight = OceanWaveHeight(noise, time) * waveAmplitude;
-    // position.y = oceanStartPosition.y + waveHeight;
-    vertexBuffer[index] = position;
-    
+    vertexBuffer[index] = gerstner(originalVertexPos, windDirection, time, waveAmplitude, waveLength, waveSteepness, wavePhaseShift);
 }
 
 [numthreads(32,32,1)]
@@ -113,35 +119,21 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     
     // Calculate the base index for this quad's two triangles
     uint baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
-    
-    // First triangle
-    int index0 = triangleBuffer[baseIndex];
-    int index1 = triangleBuffer[baseIndex + 1];
-    int index2 = triangleBuffer[baseIndex + 2];
+    [unroll]
+    for (int tri = 0; tri < 2; tri++) {
+        int index0 = triangleBuffer[baseIndex + tri * 3];
+        int index1 = triangleBuffer[baseIndex + tri * 3 + 1];
+        int index2 = triangleBuffer[baseIndex + tri * 3 + 2];
 
-    float3 p0 = vertexBuffer[index0];
-    float3 p1 = vertexBuffer[index1];
-    float3 p2 = vertexBuffer[index2];
+        float3 p0 = vertexBuffer[index0];
+        float3 p1 = vertexBuffer[index1];
+        float3 p2 = vertexBuffer[index2];
 
-    float3 normal = normalize(cross(p2 - p1, p0 - p1));
-    normalBuffer[baseIndex] = normal;  // Store normal for vertex 0
-    normalBuffer[baseIndex + 1] = normal;  // Store normal for vertex 1
-    normalBuffer[baseIndex + 2] = normal; // Store per-triangle normal
-
-    // Second triangle
-    index0 = triangleBuffer[baseIndex + 3];
-    index1 = triangleBuffer[baseIndex + 4];
-    index2 = triangleBuffer[baseIndex + 5];
-
-    p0 = vertexBuffer[index0];
-    p1 = vertexBuffer[index1];
-    p2 = vertexBuffer[index2];
-
-    normal = normalize(cross(p0 - p2, p1 - p2));
-    normalBuffer[baseIndex + 3] = normal;  // Store normal for vertex 0
-    normalBuffer[baseIndex + 4] = normal;  // Store normal for vertex 1
-    normalBuffer[baseIndex + 5] = normal; // Store per-triangle normal
-    
+        float3 normal = normalize(cross(p1 - p0, p2 - p0));
+        normalBuffer[baseIndex + tri * 3] = normal;  // Store normal for vertex 0
+        normalBuffer[baseIndex + tri * 3 + 1] = normal;  // Store normal for vertex 1
+        normalBuffer[baseIndex + tri * 3 + 2] = normal; // Store per-triangle normal
+    }
 }
 
 

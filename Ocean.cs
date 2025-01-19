@@ -6,13 +6,11 @@ public class Ocean : MonoBehaviour
 {
     [SerializeField] ComputeShader computeShader;
     [SerializeField] Material oceanMaterial;
-    [SerializeField] Texture2D noiseTexture;
+    [SerializeField] GerstnerWave[] gerstnerWaves;
 
     ComputeBuffer vertexBuffer;
     ComputeBuffer triangleBuffer;
     ComputeBuffer normalBuffer;
-    Vector3 [] cpuNormals;
-    int [] cpuTriangleIndices;
 
     int kernelHandleFillVertices;
     int kernelHandleFillTriangles;
@@ -35,12 +33,14 @@ public class Ocean : MonoBehaviour
     [Header("Ocean wave parameters")]
     [Tooltip("Wave amplitude"), Range(0.0f, 50.0f), SerializeField]
     float waveAmplitude;
-    [Tooltip("Wave frequency"), Range(0.01f, 20.0f), SerializeField]
-    float waveFrequency;
+    [Tooltip("Wave steepness"), Range(0.0f, 10.0f), SerializeField]
+    float waveSteepness;
+    [Tooltip("Wave phase shift"), Range(0.0f, 2 * Mathf.PI), SerializeField]
+    float wavePhaseShift;
+    [Tooltip("Wave length"), Range(0.01f, 25.0f), SerializeField]
+    float waveLength;
     [Tooltip("Wind direction (in degrees)"), Range(0.0f, 360.0f), SerializeField]
     float windDirectionDegrees;
-    [Tooltip("Wind strength"), Range(0.0f, 5.0f), SerializeField]
-    float windStrength;
 
     [Header("Ocean property parameters")]
     [Tooltip("Shallow color"), SerializeField]
@@ -74,9 +74,6 @@ public class Ocean : MonoBehaviour
 
     private void Update() {
         DispatchSimulateWaves();
-        if(Input.GetKeyDown(KeyCode.Space)) {
-            CheckNormals();
-        }
     }
 
     private void BindKernelHandles()
@@ -99,15 +96,12 @@ public class Ocean : MonoBehaviour
         // Set up the triangle buffer
         numberOfTriangleIndices = (numberOfVerticesPerSide - 1) * (numberOfVerticesPerSide - 1) * 6;
         triangleBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(int));
-        cpuTriangleIndices = new int[numberOfTriangleIndices];
         normalBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(float) * 3);
-        Debug.Log(numberOfTriangleIndices);
-        cpuNormals = new Vector3[numberOfTriangleIndices];
+
         // Bind the buffers to the kernel handles
         computeShader.SetBuffer(kernelHandleFillVertices, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleFillTriangles, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
-        computeShader.SetTexture(kernelHandleSimulateWaves, "noiseTexture", noiseTexture);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "normalBuffer", normalBuffer);
@@ -149,9 +143,10 @@ public class Ocean : MonoBehaviour
 
     private void SetSimulateWaveParameters() {
         computeShader.SetFloat("waveAmplitude", waveAmplitude);
-        computeShader.SetFloat("waveFrequency", waveFrequency);
+        computeShader.SetFloat("waveSteepness", waveSteepness);
+        computeShader.SetFloat("wavePhaseShift", wavePhaseShift);
+        computeShader.SetFloat("waveLength", waveLength);
         computeShader.SetVector("windDirection", AngleToDirection(windDirectionDegrees));
-        computeShader.SetFloat("windStrength", windStrength);
     }
 
     public static Vector2 AngleToDirection(float angleDegrees) {
@@ -193,18 +188,27 @@ public class Ocean : MonoBehaviour
         triangleBuffer.Dispose();
         normalBuffer.Dispose();
     }
+}
 
-    private void CheckNormals() {
-        normalBuffer.GetData(cpuNormals);
-        Debug.Log($"Number of normals: {cpuNormals.Length}");
-        for (int i = 0; i < cpuNormals.Length; i++) {
-            Debug.Log(cpuNormals[i]);
-        }
+[System.Serializable]
+public class GerstnerWave
+{
+    [Tooltip("Wave amplitude"), Range(0.0f, 50.0f), SerializeField]
+    float waveAmplitude;
+    [Tooltip("Wave steepness"), Range(0.0f, 10.0f), SerializeField]
+    float waveSteepness;
+    [Tooltip("Wave phase shift"), Range(0.0f, 2 * Mathf.PI), SerializeField]
+    float wavePhaseShift;
+    [Tooltip("Wave length"), Range(0.01f, 25.0f), SerializeField]
+    float waveLength;
+    [Tooltip("Wind direction (in degrees)"), Range(0.0f, 360.0f), SerializeField]
+    Vector2 windDirectionDegrees;
 
-        triangleBuffer.GetData(cpuTriangleIndices);
-        Debug.Log($"Number of triangle indices: {cpuTriangleIndices.Length}");
-        for (int i = 0; i < cpuTriangleIndices.Length; i++) {
-            Debug.Log(cpuTriangleIndices[i]);
-        }
+    public GerstnerWave(float waveAmplitude, float waveSteepness, float wavePhaseShift, float waveLength, Vector2 windDirectionDegrees) {
+        this.waveAmplitude = waveAmplitude;
+        this.waveSteepness = waveSteepness;
+        this.wavePhaseShift = wavePhaseShift;
+        this.waveLength = waveLength;
+        this.windDirectionDegrees = windDirectionDegrees;
     }
 }
