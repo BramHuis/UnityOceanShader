@@ -11,6 +11,7 @@ public class Ocean : MonoBehaviour
     ComputeBuffer vertexBuffer;
     ComputeBuffer triangleBuffer;
     ComputeBuffer normalBuffer;
+    ComputeBuffer gerstnerWaveBuffer;
 
     int kernelHandleFillVertices;
     int kernelHandleFillTriangles;
@@ -93,15 +94,20 @@ public class Ocean : MonoBehaviour
         Debug.Log($"The number of vertices in the ocean is {numberOfVertices}.");
         vertexBuffer = new ComputeBuffer(numberOfVertices, sizeof(float) * 3);
 
-        // Set up the triangle buffer
+        // Set up the triangle and normal buffer
         numberOfTriangleIndices = (numberOfVerticesPerSide - 1) * (numberOfVerticesPerSide - 1) * 6;
         triangleBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(int));
         normalBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(float) * 3);
+
+        // Set up the gerstner wave
+        gerstnerWaveBuffer = new ComputeBuffer(gerstnerWaves.Length, sizeof(float) * 6);
+        gerstnerWaveBuffer.SetData(gerstnerWaves);
 
         // Bind the buffers to the kernel handles
         computeShader.SetBuffer(kernelHandleFillVertices, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleFillTriangles, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
+        computeShader.SetBuffer(kernelHandleSimulateWaves, "gerstnerWaveBuffer", gerstnerWaveBuffer);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleCalculateNormals, "normalBuffer", normalBuffer);
@@ -187,11 +193,12 @@ public class Ocean : MonoBehaviour
         vertexBuffer.Dispose();
         triangleBuffer.Dispose();
         normalBuffer.Dispose();
+        gerstnerWaveBuffer.Dispose();
     }
 }
 
 [System.Serializable]
-public class GerstnerWave
+public struct GerstnerWave
 {
     [Tooltip("Wave amplitude"), Range(0.0f, 50.0f), SerializeField]
     float waveAmplitude;
@@ -201,7 +208,7 @@ public class GerstnerWave
     float wavePhaseShift;
     [Tooltip("Wave length"), Range(0.01f, 25.0f), SerializeField]
     float waveLength;
-    [Tooltip("Wind direction (in degrees)"), Range(0.0f, 360.0f), SerializeField]
+    [Tooltip("Wind direction (in degrees)"), SerializeField]
     Vector2 windDirectionDegrees;
 
     public GerstnerWave(float waveAmplitude, float waveSteepness, float wavePhaseShift, float waveLength, Vector2 windDirectionDegrees) {

@@ -4,6 +4,14 @@
 #pragma kernel SimulateWaves
 #pragma kernel CalculateNormals
 
+struct GerstnerWave {
+    float waveAmplitude;
+    float waveSteepness;
+    float wavePhaseShift;
+    float waveLength;
+    float2 windDirection;
+};
+
 // Parameters for setting up the vertices and triangles
 RWStructuredBuffer<float3> vertexBuffer;
 RWStructuredBuffer<int> triangleBuffer;
@@ -14,23 +22,11 @@ float oceanLength;
 
 // Parameters for simulating waves
 RWStructuredBuffer<float3> normalBuffer;
-// Texture2D noiseTexture;
-// SamplerState samplerState;
-float waveAmplitude;
-float waveSteepness;
-float wavePhaseShift;
-float waveLength;
-float2 windDirection;
+StructuredBuffer<GerstnerWave> gerstnerWaveBuffer;
 float time;
-
 #define PI 3.14159265359
 
-struct GerstnerWave {
-    float amplitude;
-    float wavelength;
-    float2 direction;
-    float phaseShift;
-};
+
 
 
 [numthreads(32,32,1)]
@@ -108,7 +104,7 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     float zStep = oceanLength / (numberOfVerticesPerSide - 1);
     float3 originalVertexPos = float3(oceanStartPosition.x + id.x * xStep, oceanStartPosition.y, oceanStartPosition.z + id.y * zStep);
 
-    vertexBuffer[index] = gerstner(originalVertexPos, windDirection, time, waveAmplitude, waveLength, waveSteepness, wavePhaseShift);
+    vertexBuffer[index] = gerstner(originalVertexPos, gerstnerWaveBuffer[0].windDirection, time, gerstnerWaveBuffer[0].waveAmplitude, gerstnerWaveBuffer[0].waveLength, gerstnerWaveBuffer[0].waveSteepness, gerstnerWaveBuffer[0].wavePhaseShift);
 }
 
 [numthreads(32,32,1)]
