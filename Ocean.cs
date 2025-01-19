@@ -55,11 +55,11 @@ public class Ocean : MonoBehaviour
     Color ambientLight;
     [Tooltip("Ambient color strength"), Range(0.0f, 1.0f),SerializeField]
     float ambientLightStrength;
-    [Tooltip("Shininess of the specular highlights"), Range(0.1f, 40), SerializeField]
+    [Tooltip("Shininess of the specular highlights"), Range(0.0f, 100.0f), SerializeField]
     float specularHighlightShininess;
     [Tooltip("Fresnel color"), SerializeField]
     Color fresnelColor;
-    [Tooltip("Fresnel strength"), SerializeField]
+    [Tooltip("Fresnel strength"), Range(0.0f, 10.0f), SerializeField]
     float fresnelPower;
     Vector3 mainLightDirection;
     Vector4 mainLightColor;
@@ -128,7 +128,7 @@ public class Ocean : MonoBehaviour
     
     private void SetUpWaveGenerationMaterialBuffers()
     {
-        mainLightDirection = RenderSettings.sun.transform.forward;
+        mainLightDirection = -RenderSettings.sun.transform.forward;
         mainLightColor = RenderSettings.sun.color;
 
         // Set the data of the vert/frag shaders

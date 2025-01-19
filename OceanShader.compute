@@ -54,9 +54,9 @@ void FillTriangleBuffer (uint3 id : SV_DispatchThreadID) {
     triangleBuffer[baseIndex + 2] = topRight;
 
     // Top-right, Bottom-right, Bottom-left
-    triangleBuffer[baseIndex + 3] = topRight;
-    triangleBuffer[baseIndex + 4] = bottomRight;
-    triangleBuffer[baseIndex + 5] = bottomLeft;
+    triangleBuffer[baseIndex + 3] = bottomLeft;
+    triangleBuffer[baseIndex + 4] = topRight;
+    triangleBuffer[baseIndex + 5] = bottomRight;
 }
 
 float OceanWaveHeight(float4 noise, float time) {
@@ -113,21 +113,35 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     
     // Calculate the base index for this quad's two triangles
     uint baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
-    [unroll]
-    for (int tri = 0; tri < 2; tri++) {
-        int index0 = triangleBuffer[baseIndex + tri * 3];
-        int index1 = triangleBuffer[baseIndex + tri * 3 + 1];
-        int index2 = triangleBuffer[baseIndex + tri * 3 + 2];
+    
+    // First triangle
+    int index0 = triangleBuffer[baseIndex];
+    int index1 = triangleBuffer[baseIndex + 1];
+    int index2 = triangleBuffer[baseIndex + 2];
 
-        float3 p0 = vertexBuffer[index0];
-        float3 p1 = vertexBuffer[index1];
-        float3 p2 = vertexBuffer[index2];
+    float3 p0 = vertexBuffer[index0];
+    float3 p1 = vertexBuffer[index1];
+    float3 p2 = vertexBuffer[index2];
 
-        float3 normal = normalize(cross(p1 - p0, p2 - p0));
-        normalBuffer[baseIndex + tri * 3] = normal;  // Store normal for vertex 0
-        normalBuffer[baseIndex + tri * 3 + 1] = normal;  // Store normal for vertex 1
-        normalBuffer[baseIndex + tri * 3 + 2] = normal; // Store per-triangle normal
-    }
+    float3 normal = normalize(cross(p2 - p1, p0 - p1));
+    normalBuffer[baseIndex] = normal;  // Store normal for vertex 0
+    normalBuffer[baseIndex + 1] = normal;  // Store normal for vertex 1
+    normalBuffer[baseIndex + 2] = normal; // Store per-triangle normal
+
+    // Second triangle
+    index0 = triangleBuffer[baseIndex + 3];
+    index1 = triangleBuffer[baseIndex + 4];
+    index2 = triangleBuffer[baseIndex + 5];
+
+    p0 = vertexBuffer[index0];
+    p1 = vertexBuffer[index1];
+    p2 = vertexBuffer[index2];
+
+    normal = normalize(cross(p0 - p2, p1 - p2));
+    normalBuffer[baseIndex + 3] = normal;  // Store normal for vertex 0
+    normalBuffer[baseIndex + 4] = normal;  // Store normal for vertex 1
+    normalBuffer[baseIndex + 5] = normal; // Store per-triangle normal
+    
 }
 
 

@@ -65,18 +65,20 @@ Shader "Unlit/OceanShader"
                 float2 uvFlipped = (o.vertex.xy / o.vertex.w) * 0.5 + 0.5;
                 o.uv = float2(uvFlipped.x, 1.0 - uvFlipped.y);
                 
-                o.normal = normalBuffer[vertexIndex];
+                o.normal = normalBuffer[v.index];
 
                 return o;
-            } 
+            }  
 
             fixed4 frag(v2f i) : SV_Target
             {    
+                // float3 normalColor = 0.5 * (i.normal + 1.0);
+                // return fixed4(normalColor, 1.0);
                 float3 lightDir = normalize(mainLightDirection); // Example light direction
                 float diffuse = max(dot(i.normal, lightDir), 0.0);
 
                 // Specular highlights
-                float3 viewDir = normalize(i.worldPos - _WorldSpaceCameraPos);  // Direction to the camera
+                float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);  // Direction to the camera
                 float3 halfwayDir = normalize(lightDir + viewDir);  // Halfway vector
                 float spec = pow(max(dot(i.normal, halfwayDir), 0.0), specularHighlightShininess);
                 fixed4 specularColor = mainLightColor * spec;
@@ -86,12 +88,13 @@ Shader "Unlit/OceanShader"
                 float lerpFactor = smoothstep(0.0, oceanColorBlendDepth, distanceThroughOcean);
                 fixed4 waterColor = lerp(shallowWaterColor, deepWaterColor, lerpFactor);
 
-                // float fresnel = pow(1.0 - dot(viewDir, i.normal), fresnelPower);
-                // waterColor.rgb += fresnel * fresnelColor.rgb;
-                // Apply ambient lighting , diffuse lighting and specular hightlights
-                waterColor.rgb += ambientLight.rgb * ambientLightStrength;
+                float fresnel = pow(1.0 - dot(viewDir, i.normal), fresnelPower);
+
+                waterColor.rgb += fresnel * fresnelColor.rgb;
                 waterColor.rgb *= diffuse;
+                waterColor.rgb += ambientLight.rgb * ambientLightStrength;
                 waterColor.rgb += specularColor.rgb;
+                waterColor.rgb = saturate(waterColor.rgb);
 
                 return waterColor;
             }
