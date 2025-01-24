@@ -5,10 +5,12 @@
 #pragma kernel CalculateNormals
 
 struct GerstnerWave {
+    int toggle;
     float waveAmplitude;
     float waveSteepness;
     float wavePhaseShift;
     float waveLength;
+    float waveSpeed;
     float2 windDirection;
 };
 
@@ -23,9 +25,9 @@ float oceanLength;
 // Parameters for simulating waves
 RWStructuredBuffer<float3> normalBuffer;
 StructuredBuffer<GerstnerWave> gerstnerWaveBuffer;
+int numberOfGerstnerWaves;
 float time;
 #define PI 3.14159265359
-
 
 
 
@@ -65,30 +67,11 @@ void FillTriangleBuffer (uint3 id : SV_DispatchThreadID) {
     triangleBuffer[baseIndex + 5] = bottomRight;
 }
 
-float3 gerstner(float3 vertex, float2 direction, float time, float amplitude, float wavelength, float waveSteepness, float wavePhaseShift)
-{
-    // Compute the wave number (k = 2 * pi / wavelength)
-    float k = 2.0 * PI / wavelength;
-    
-    // Compute the dot product between the wave direction and the position in the xz-plane
-    float dotProduct = dot(direction, vertex.xz);
-    
-    // Compute the wave phase based on the wave number, dot product, and time
-    float wavePhase = k * dotProduct + time + wavePhaseShift;
-    
-    // Calculate the horizontal displacement for the x and z axes
-    // The horizontal displacement depends on both amplitude, steepness, and wavelength
-    float horizontalDisplacement = (amplitude / wavelength) * cos(wavePhase) * waveSteepness;
-    
-    // Apply the displacement in the x and z directions
-    float displaced_x = vertex.x + direction.x * horizontalDisplacement;
-    float displaced_z = vertex.z + direction.y * horizontalDisplacement;
-    
-    // Vertical displacement based on the sine wave
-    float displaced_y = vertex.y + amplitude * sin(wavePhase);
-    
-    // Return the displaced position
-    return float3(displaced_x, displaced_y, displaced_z);
+float3 Gerstner(float3 vertex, float2 direction, float time, float speed, float steepness, float amplitude, float wavelength) {
+	float displaced_x = (steepness / wavelength) * direction.x * cos(wavelength * dot(direction, vertex.xz) + speed * time);
+	float displaced_z = (steepness / wavelength) * direction.y * cos(wavelength * dot(direction, vertex.xz) + speed * time);
+	float displaced_y = amplitude * sin(wavelength * dot(direction, vertex.xz) + speed * time);
+	return float3(displaced_x, displaced_y, displaced_z);
 }
 
 [numthreads(32,32,1)]
@@ -104,7 +87,13 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     float zStep = oceanLength / (numberOfVerticesPerSide - 1);
     float3 originalVertexPos = float3(oceanStartPosition.x + id.x * xStep, oceanStartPosition.y, oceanStartPosition.z + id.y * zStep);
 
-    vertexBuffer[index] = gerstner(originalVertexPos, gerstnerWaveBuffer[0].windDirection, time, gerstnerWaveBuffer[0].waveAmplitude, gerstnerWaveBuffer[0].waveLength, gerstnerWaveBuffer[0].waveSteepness, gerstnerWaveBuffer[0].wavePhaseShift);
+    float3 finalPosition;
+    for (int i = 0; i < numberOfGerstnerWaves; i++) {
+        if (gerstnerWaveBuffer[i].toggle) {
+            finalPosition += Gerstner(originalVertexPos, gerstnerWaveBuffer[i].windDirection, time, gerstnerWaveBuffer[i].waveSpeed, gerstnerWaveBuffer[i].waveSteepness, gerstnerWaveBuffer[i].waveAmplitude, gerstnerWaveBuffer[i].waveLength);
+        }
+    }
+    vertexBuffer[index] = originalVertexPos + finalPosition;
 }
 
 [numthreads(32,32,1)]
@@ -131,6 +120,7 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
         normalBuffer[baseIndex + tri * 3 + 2] = normal; // Store per-triangle normal
     }
 }
+
 
 
 

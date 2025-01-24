@@ -26,17 +26,25 @@ Shader "Unlit/OceanShader"
             float4 shallowWaterColor;
             float4 deepWaterColor;
             float oceanColorBlendDepth;
+
             float specularHighlightShininess;
+
             float3 mainLightDirection;
-            float4 mainLightColor;
+            float4 mainLightColor; 
+
             float4 ambientLight;
             float ambientLightStrength;
+
             float4 fresnelColor;
             float fresnelPower;
+
+            int isDepthBased;
+            float refractionStrength;
             
             sampler2D _CameraDepthTexture;
+            sampler2D _CameraOpaqueTdddexture;
             
-            struct appdata
+            struct appdata 
             {
                 uint index : SV_VERTEXID;  // Used to access the vertex index
             };
@@ -49,6 +57,13 @@ Shader "Unlit/OceanShader"
                 nointerpolation float3 worldPos : TEXCOORD2;
                 nointerpolation float3 normal: NORMAL;
             };
+
+            // Helper function to compute refracted UVs
+            float2 RefractUV(float2 uv, float strength, float3 normal) {
+                float strengthMod = strength * (isDepthBased ? pow(uv.y, 4.0) * 5.0 : 1.0);
+                uv += strengthMod * length(normal) - strengthMod * 1.2;
+                return uv;
+            }
 
             v2f vert(appdata v)
             {
@@ -86,6 +101,14 @@ Shader "Unlit/OceanShader"
                 float lerpFactor = smoothstep(0.0, oceanColorBlendDepth, distanceThroughOcean);
                 fixed4 waterColor = lerp(shallowWaterColor, deepWaterColor, lerpFactor);
 
+                float fresnel = pow(1.0 - dot(viewDir, i.normal), fresnelPower);
+
+                // Refraction logic
+                float2 refractedUV = RefractUV(i.uv, refractionStrength, i.normal);
+                float3 refractedColor = tex2D(_CameraOpaqueTdddexture, refractedUV).rgb;
+
+                waterColor.rgb = lerp(waterColor.rgb, refractedColor, 0.2);
+                waterColor.rgb += fresnel * fresnelColor.rgb;
                 waterColor.rgb *= diffuse;
                 waterColor.rgb += ambientLight.rgb * ambientLightStrength;
                 waterColor.rgb += specularColor.rgb;
