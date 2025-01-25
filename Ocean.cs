@@ -52,11 +52,11 @@ public class Ocean : MonoBehaviour
     Vector3 mainLightDirection;
     Vector4 mainLightColor;
 
-    [Header("Ocean refraction")]
-    [Tooltip("Refraction affected by depth"), SerializeField]
-    bool isDepthBased;
-    [Tooltip("Refraction strength"), Range(0.0f, 1000.0f), SerializeField]
-    float refractionStrength;
+    [Header("Ocean foam")]
+    [Tooltip("Width of foam"), Range(0.0f, 10.0f), SerializeField]
+    float foamWidth;
+    [Tooltip("Foam color"), SerializeField]
+    Color foamColor;
 
 
 
@@ -141,12 +141,8 @@ public class Ocean : MonoBehaviour
         oceanMaterial.SetFloat("ambientLightStrength", ambientLightStrength);
         oceanMaterial.SetVector("fresnelColor", fresnelColor);   
         oceanMaterial.SetFloat("fresnelPower", fresnelPower);
-        if (isDepthBased) {
-            oceanMaterial.SetInt("isDepthBased", 1);
-        } else {
-            oceanMaterial.SetInt("isDepthBased", 0);
-        }
-        oceanMaterial.SetFloat("refractionStrength", refractionStrength);
+        oceanMaterial.SetFloat("foamWidth", foamWidth);
+        oceanMaterial.SetVector("foamColor", foamColor);
     }
 
     public static Vector2 AngleToDirection(float angleDegrees) {

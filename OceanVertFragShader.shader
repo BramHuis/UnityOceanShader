@@ -38,11 +38,10 @@ Shader "Unlit/OceanShader"
             float4 fresnelColor;
             float fresnelPower;
 
-            int isDepthBased;
-            float refractionStrength;
+            float foamWidth = 0;
+            float4 foamColor;
             
             sampler2D _CameraDepthTexture;
-            sampler2D _CameraOpaqueTdddexture;
             
             struct appdata 
             {
@@ -58,13 +57,6 @@ Shader "Unlit/OceanShader"
                 nointerpolation float3 normal: NORMAL;
             };
 
-            // Helper function to compute refracted UVs
-            float2 RefractUV(float2 uv, float strength, float3 normal) {
-                float strengthMod = strength * (isDepthBased ? pow(uv.y, 4.0) * 5.0 : 1.0);
-                uv += strengthMod * length(normal) - strengthMod * 1.2;
-                return uv;
-            }
-
             v2f vert(appdata v)
             {
                 v2f o;
@@ -72,10 +64,10 @@ Shader "Unlit/OceanShader"
                 float3 vertexPosition = vertexPositions[vertexIndex];
 
                 o.worldPos = mul(unity_ObjectToWorld, float4(vertexPosition, 1.0)).xyz;
-
-                o.oceanDistance = distance(o.worldPos, _WorldSpaceCameraPos);
+                float3 cameraSpacePos = mul(UNITY_MATRIX_V , float4(o.worldPos, 1.0)).xyz;
+                o.oceanDistance = o.oceanDistance = abs(cameraSpacePos.z);
                 
-                o.vertex = UnityObjectToClipPos(vertexPosition);
+                o.vertex = UnityObjectToClipPos(vertexPosition); 
 
                 float2 uvFlipped = (o.vertex.xy / o.vertex.w) * 0.5 + 0.5;
                 o.uv = float2(uvFlipped.x, 1.0 - uvFlipped.y);
@@ -97,23 +89,23 @@ Shader "Unlit/OceanShader"
                 fixed4 specularColor = mainLightColor * spec;
 
                 float nonOceanDepth = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv)); // Get the depth of all objects in the scene looking through the shader
-                float distanceThroughOcean = nonOceanDepth - i.oceanDistance; // Get the distance through the ocean to an object
+                float distanceThroughOcean = max(0.0, nonOceanDepth - i.oceanDistance); // Get the distance through the ocean to an object
                 float lerpFactor = smoothstep(0.0, oceanColorBlendDepth, distanceThroughOcean);
                 fixed4 waterColor = lerp(shallowWaterColor, deepWaterColor, lerpFactor);
 
                 float fresnel = pow(1.0 - dot(viewDir, i.normal), fresnelPower);
 
-                // Refraction logic
-                float2 refractedUV = RefractUV(i.uv, refractionStrength, i.normal);
-                float3 refractedColor = tex2D(_CameraOpaqueTdddexture, refractedUV).rgb;
-
-                waterColor.rgb = lerp(waterColor.rgb, refractedColor, 0.2);
                 waterColor.rgb += fresnel * fresnelColor.rgb;
                 waterColor.rgb *= diffuse;
                 waterColor.rgb += ambientLight.rgb * ambientLightStrength;
                 waterColor.rgb += specularColor.rgb;
                 waterColor.rgb = saturate(waterColor.rgb);
 
+                
+
+                if(distanceThroughOcean < foamWidth) {
+                    waterColor = foamColor;
+                }
                 return waterColor;
             }
 
