@@ -65,7 +65,7 @@ Shader "Unlit/OceanShader"
 
                 o.worldPos = mul(unity_ObjectToWorld, float4(vertexPosition, 1.0)).xyz;
                 float3 cameraSpacePos = mul(UNITY_MATRIX_V , float4(o.worldPos, 1.0)).xyz;
-                o.oceanDistance = o.oceanDistance = abs(cameraSpacePos.z);
+                o.oceanDistance = abs(cameraSpacePos.z);
                 
                 o.vertex = UnityObjectToClipPos(vertexPosition); 
 

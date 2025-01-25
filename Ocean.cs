@@ -34,31 +34,29 @@ public class Ocean : MonoBehaviour
 
     [Header("Ocean property parameters")]
     [Tooltip("Shallow color"), SerializeField]
-    Color shallowWaterColor;
+    Color shallowWaterColor = new Color(0, 178, 191, 178);
     [Tooltip("Deep color"), SerializeField]
-    Color deepWaterColor;
+    Color deepWaterColor = new Color(16, 138, 196, 255);
     [Tooltip("Ocean color blend depth"), Range(0.1f, 200f), SerializeField]
-    float oceanColorBlendDepth;
+    float oceanColorBlendDepth = 30.0f;
     [Tooltip("Ambient color"), SerializeField]
-    Color ambientLight;
+    Color ambientLight = new Color(16, 138, 196, 255);
     [Tooltip("Ambient color strength"), Range(0.0f, 1.0f),SerializeField]
-    float ambientLightStrength;
+    float ambientLightStrength = 0.1f;
     [Tooltip("Shininess of the specular highlights"), Range(0.0f, 100.0f), SerializeField]
-    float specularHighlightShininess;
+    float specularHighlightShininess = 50.0f;
     [Tooltip("Fresnel color"), SerializeField]
-    Color fresnelColor;
+    Color fresnelColor = new Color(204, 230, 255, 255);
     [Tooltip("Fresnel strength"), Range(0.0f, 10.0f), SerializeField]
-    float fresnelPower;
+    float fresnelPower = 3.5f;
     Vector3 mainLightDirection;
     Vector4 mainLightColor;
 
     [Header("Ocean foam")]
     [Tooltip("Width of foam"), Range(0.0f, 10.0f), SerializeField]
-    float foamWidth;
+    float foamWidth = 1.0f;
     [Tooltip("Foam color"), SerializeField]
-    Color foamColor;
-
-
+    Color foamColor = new Color(255, 255, 255, 255);
 
 
     private void Start() {
