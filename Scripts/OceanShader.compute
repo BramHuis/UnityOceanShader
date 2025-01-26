@@ -3,6 +3,8 @@
 #pragma kernel FillTriangleBuffer
 #pragma kernel SimulateWaves
 #pragma kernel CalculateNormals
+#pragma kernel CalculateNormalsSmooth
+#pragma kernel NormalizeNormalsSmooth
 
 struct GerstnerWave {
     int toggle;
@@ -24,6 +26,7 @@ float oceanLength;
 
 // Parameters for simulating waves
 RWStructuredBuffer<float3> normalBuffer;
+RWStructuredBuffer<int> atomicNormalBuffer;
 StructuredBuffer<GerstnerWave> gerstnerWaveBuffer;
 int numberOfGerstnerWaves;
 float time;
@@ -121,6 +124,60 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     }
 }
 
+[numthreads(32,32,1)]
+void CalculateNormalsSmooth (uint3 id : SV_DispatchThreadID) {
+    if (id.x >= (uint)(numberOfVerticesPerSide - 1) || id.y >= (uint)(numberOfVerticesPerSide - 1)) {
+        return;
+    }
 
+    int index = id.y * numberOfVerticesPerSide + id.x;
+    atomicNormalBuffer[index * 3 + 0] = 0;
+    atomicNormalBuffer[index * 3 + 1] = 0;
+    atomicNormalBuffer[index * 3 + 2] = 0;
+    
+    // Calculate the base index for this quad's two triangles
+    uint baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
+    [unroll]
+    for (int tri = 0; tri < 2; tri++) {
+        int index0 = triangleBuffer[baseIndex + tri * 3];
+        int index1 = triangleBuffer[baseIndex + tri * 3 + 1];
+        int index2 = triangleBuffer[baseIndex + tri * 3 + 2];
+
+        float3 p0 = vertexBuffer[index0];
+        float3 p1 = vertexBuffer[index1];
+        float3 p2 = vertexBuffer[index2];
+
+        float3 normal = normalize(cross(p1 - p0, p2 - p0)) * 10000.0; // Use a large scaling factor
+        int3 scaledNormal = int3(normal.x, normal.y, normal.z); // Convert to int for atomic operations
+        InterlockedAdd(atomicNormalBuffer[index0 * 3 + 0], scaledNormal.x);
+        InterlockedAdd(atomicNormalBuffer[index0 * 3 + 1], scaledNormal.y);
+        InterlockedAdd(atomicNormalBuffer[index0 * 3 + 2], scaledNormal.z);
+
+        InterlockedAdd(atomicNormalBuffer[index1 * 3 + 0], scaledNormal.x);
+        InterlockedAdd(atomicNormalBuffer[index1 * 3 + 1], scaledNormal.y);
+        InterlockedAdd(atomicNormalBuffer[index1 * 3 + 2], scaledNormal.z);
+
+        InterlockedAdd(atomicNormalBuffer[index2 * 3 + 0], scaledNormal.x);
+        InterlockedAdd(atomicNormalBuffer[index2 * 3 + 1], scaledNormal.y);
+        InterlockedAdd(atomicNormalBuffer[index2 * 3 + 2], scaledNormal.z);
+    }
+}
+
+[numthreads(32,32,1)]
+void NormalizeNormalsSmooth(uint3 id : SV_DispatchThreadID) {
+    if(id.x >= (uint)numberOfVerticesPerSide || id.y >= (uint)numberOfVerticesPerSide) {
+        return;
+    }
+
+    int index = id.y * numberOfVerticesPerSide + id.x;
+
+    float3 normal = float3(
+        (float)(atomicNormalBuffer[index * 3 + 0]),
+        (float)(atomicNormalBuffer[index * 3 + 1]),
+        (float)(atomicNormalBuffer[index * 3 + 2])
+    );
+
+    normalBuffer[index] = normalize(float3(0.0, 1.0, 0.0));
+}
 
 

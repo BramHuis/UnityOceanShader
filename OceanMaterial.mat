@@ -11,8 +11,10 @@ Material:
   m_Shader: {fileID: 4800000, guid: ba1f342a4c5929046a618d77ff69ecd2, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
+  m_ValidKeywords:
+  - FLATSHADINGPASS
+  m_InvalidKeywords:
+  - USE_SPECIAL_PASS
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -109,6 +111,7 @@ Material:
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
     - _Surface: 0
+    - _UseSpecialPass: 0
     - _WorkflowMode: 1
     - _ZWrite: 1
     m_Colors:

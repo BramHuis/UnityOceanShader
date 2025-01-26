@@ -13,12 +13,15 @@ public class Ocean : MonoBehaviour
     ComputeBuffer vertexBuffer;
     ComputeBuffer triangleBuffer;
     ComputeBuffer normalBuffer;
+    ComputeBuffer atomicNormalBuffer;
     ComputeBuffer gerstnerWaveBuffer;
 
     int kernelHandleFillVertices;
     int kernelHandleFillTriangles;
     int kernelHandleSimulateWaves;
     int kernelHandleCalculateNormals;
+    int kernelHandleCalculateNormalsSmooth;
+    int kernelHandleNormalizeNormalsSmooth;
 
     int numberOfVertices;
     int numberOfTriangleIndices;
@@ -47,6 +50,8 @@ public class Ocean : MonoBehaviour
     float foamWidth;
     Color foamColor;
 
+    bool applySmoothShading;
+
 
     private void Start() {
         OceanSOValidator.CacheOceansInScene(); // Only runs once even with multiple Ocean.cs scripts
@@ -63,6 +68,7 @@ public class Ocean : MonoBehaviour
     }
 
     void ChangeOceanSODataOnce() {
+        applySmoothShading = oceanSO.applySmoothShading;
         oceanWidth = oceanSO.oceanWidth;
         oceanLength = oceanSO.oceanLength;
         numberOfVerticesPerSide = oceanSO.numberOfVerticesPerSide;
@@ -89,6 +95,8 @@ public class Ocean : MonoBehaviour
         kernelHandleFillTriangles = computeShader.FindKernel("FillTriangleBuffer");
         kernelHandleSimulateWaves = computeShader.FindKernel("SimulateWaves");
         kernelHandleCalculateNormals = computeShader.FindKernel("CalculateNormals");
+        kernelHandleCalculateNormalsSmooth = computeShader.FindKernel("CalculateNormalsSmooth");
+        kernelHandleNormalizeNormalsSmooth = computeShader.FindKernel("NormalizeNormalsSmooth");
     }
 
     private void InitializeBuffers()
@@ -101,7 +109,13 @@ public class Ocean : MonoBehaviour
         // Set up the triangle and normal buffer
         numberOfTriangleIndices = (numberOfVerticesPerSide - 1) * (numberOfVerticesPerSide - 1) * 6;
         triangleBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(int));
-        normalBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(float) * 3);
+        if (!applySmoothShading) {
+            normalBuffer = new ComputeBuffer(numberOfTriangleIndices, sizeof(float) * 3);
+        } else {
+            normalBuffer = new ComputeBuffer(numberOfVertices, sizeof(float) * 3);
+            atomicNormalBuffer = new ComputeBuffer(numberOfVertices * 3, sizeof(int));
+        }
+        
 
         // Set up the gerstner waves
         gerstnerWaves = new GerstnerWave[gerstnerWavesSO.Length];
@@ -117,9 +131,18 @@ public class Ocean : MonoBehaviour
         computeShader.SetBuffer(kernelHandleFillTriangles, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "gerstnerWaveBuffer", gerstnerWaveBuffer);
-        computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
-        computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);
-        computeShader.SetBuffer(kernelHandleCalculateNormals, "normalBuffer", normalBuffer);
+        if (!applySmoothShading) {
+            computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
+            computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);
+            computeShader.SetBuffer(kernelHandleCalculateNormals, "normalBuffer", normalBuffer);
+        } else {
+            computeShader.SetBuffer(kernelHandleCalculateNormalsSmooth, "vertexBuffer", vertexBuffer);
+            computeShader.SetBuffer(kernelHandleCalculateNormalsSmooth, "triangleBuffer", triangleBuffer);
+            computeShader.SetBuffer(kernelHandleCalculateNormalsSmooth, "normalBuffer", normalBuffer);
+            computeShader.SetBuffer(kernelHandleCalculateNormalsSmooth, "atomicNormalBuffer", atomicNormalBuffer);
+            computeShader.SetBuffer(kernelHandleNormalizeNormalsSmooth, "normalBuffer", normalBuffer);
+            computeShader.SetBuffer(kernelHandleNormalizeNormalsSmooth, "atomicNormalBuffer", atomicNormalBuffer);
+        }
     }
 
     private void GenerateOceanMeshData() 
@@ -174,9 +197,15 @@ public class Ocean : MonoBehaviour
         computeShader.SetFloat("time", Time.time);
         computeShader.GetKernelThreadGroupSizes(kernelHandleSimulateWaves, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);
         computeShader.Dispatch(kernelHandleSimulateWaves, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
-    
-        computeShader.GetKernelThreadGroupSizes(kernelHandleCalculateNormals, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);    
-        computeShader.Dispatch(kernelHandleCalculateNormals, Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeX), Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeY), 1);
+
+        if (!applySmoothShading) {
+            computeShader.GetKernelThreadGroupSizes(kernelHandleCalculateNormals, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);    
+            computeShader.Dispatch(kernelHandleCalculateNormals, Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeX), Mathf.CeilToInt((float)(numberOfVerticesPerSide - 1) / dispatchGroupSizeY), 1);
+        } else {
+            computeShader.GetKernelThreadGroupSizes(kernelHandleCalculateNormalsSmooth, out dispatchGroupSizeX, out dispatchGroupSizeY, out _);    
+            computeShader.Dispatch(kernelHandleCalculateNormalsSmooth, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
+            computeShader.Dispatch(kernelHandleNormalizeNormalsSmooth, Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeX), Mathf.CeilToInt((float)numberOfVerticesPerSide / dispatchGroupSizeY), 1);
+        }
     }
 
     private void ChangeWaveData() {
@@ -197,7 +226,8 @@ public class Ocean : MonoBehaviour
     // Unity methods
     private void OnRenderObject() {
         SetUpWaveGenerationMaterialBuffers();
-        oceanMaterial.SetPass(0);
+        int pass = applySmoothShading ? 1 : 0;
+        oceanMaterial.SetPass(pass);
         Graphics.DrawProceduralNow(MeshTopology.Triangles, numberOfTriangleIndices);
     }
      
@@ -219,6 +249,10 @@ public class Ocean : MonoBehaviour
         triangleBuffer.Dispose();
         normalBuffer.Dispose();
         gerstnerWaveBuffer.Dispose();
+        if (atomicNormalBuffer != null) {
+            atomicNormalBuffer.Dispose();
+        }
+        
     }
 }
 

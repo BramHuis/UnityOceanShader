@@ -40,6 +40,9 @@ public class OceanSO : ScriptableObject
     [Tooltip("Foam color")]
     public Color foamColor;
 
+    [Tooltip("Apply smoothshading")]
+    public bool applySmoothShading;
+
     public  void OnValidate()
     {
         // This will run when a value is changed in the Inspector or manually during runtime
