@@ -1,3 +1,5 @@
+// https://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
+
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel FillVertexBuffer
 #pragma kernel FillTriangleBuffer
@@ -5,6 +7,7 @@
 #pragma kernel CalculateNormals
 #pragma kernel CalculateNormalsSmooth
 #pragma kernel NormalizeNormalsSmooth
+#pragma kernel RetrieveOceanHeight
 
 struct GerstnerWave {
     int toggle;
@@ -32,9 +35,10 @@ int numberOfGerstnerWaves;
 float time;
 #define PI 3.14159265359
 
+RWStructuredBuffer<float2> positionsToRetrieveHeightFromBuffer;
 
 
-[numthreads(32,32,1)]
+[numthreads(32, 32 ,1)]
 void FillVertexBuffer (uint3 id : SV_DispatchThreadID) {
     if(id.x >= (uint)numberOfVerticesPerSide || id.y > (uint)numberOfVerticesPerSide) {
         return;
@@ -46,7 +50,7 @@ void FillVertexBuffer (uint3 id : SV_DispatchThreadID) {
     vertexBuffer[index] = float3(oceanStartPosition.x + id.x * xStep, oceanStartPosition.y, oceanStartPosition.z + id.y * zStep);
 }
 
-[numthreads(32,32,1)]
+[numthreads(32, 32 ,1)]
 void FillTriangleBuffer (uint3 id : SV_DispatchThreadID) {
     if(id.x >= ((uint)numberOfVerticesPerSide - 1) || id.y >= ((uint)numberOfVerticesPerSide - 1)) {
         return;
@@ -77,7 +81,7 @@ float3 Gerstner(float3 vertex, float2 direction, float time, float speed, float 
 	return float3(displaced_x, displaced_y, displaced_z);
 }
 
-[numthreads(32,32,1)]
+[numthreads(32, 32 ,1)]
 void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     if (id.x >= (uint)numberOfVerticesPerSide || id.y >= (uint)numberOfVerticesPerSide) {
         return;
@@ -99,7 +103,7 @@ void SimulateWaves (uint3 id : SV_DispatchThreadID) {
     vertexBuffer[index] = originalVertexPos + finalPosition;
 }
 
-[numthreads(32,32,1)]
+[numthreads(32, 32 ,1)]
 void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     if (id.x >= (uint)(numberOfVerticesPerSide - 1) || id.y >= (uint)(numberOfVerticesPerSide - 1)) {
         return;
@@ -124,7 +128,7 @@ void CalculateNormals (uint3 id : SV_DispatchThreadID) {
     }
 }
 
-[numthreads(32,32,1)]
+[numthreads(32, 32 ,1)]
 void CalculateNormalsSmooth (uint3 id : SV_DispatchThreadID) {
     if (id.x >= (uint)(numberOfVerticesPerSide - 1) || id.y >= (uint)(numberOfVerticesPerSide - 1)) {
         return;
@@ -134,7 +138,7 @@ void CalculateNormalsSmooth (uint3 id : SV_DispatchThreadID) {
     atomicNormalBuffer[index * 3 + 0] = 0;
     atomicNormalBuffer[index * 3 + 1] = 0;
     atomicNormalBuffer[index * 3 + 2] = 0;
-    
+
     // Calculate the base index for this quad's two triangles
     uint baseIndex = (id.y * (numberOfVerticesPerSide - 1) + id.x) * 6;
     [unroll]
@@ -163,7 +167,7 @@ void CalculateNormalsSmooth (uint3 id : SV_DispatchThreadID) {
     }
 }
 
-[numthreads(32,32,1)]
+[numthreads(32, 32 ,1)]
 void NormalizeNormalsSmooth(uint3 id : SV_DispatchThreadID) {
     if(id.x >= (uint)numberOfVerticesPerSide || id.y >= (uint)numberOfVerticesPerSide) {
         return;
@@ -180,4 +184,9 @@ void NormalizeNormalsSmooth(uint3 id : SV_DispatchThreadID) {
     normalBuffer[index] = normalize(float3(0.0, 1.0, 0.0));
 }
 
+
+[numthreads(1, 1, 1)]
+void RetrieveOceanHeight(uint3 id : SV_DispatchThreadID) {
+    positionsToRetrieveHeightFromBuffer[id.x] = (float2)(int2)(positionsToRetrieveHeightFromBuffer[id.x] - int2(100, 100));
+}
 

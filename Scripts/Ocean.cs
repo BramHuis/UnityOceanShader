@@ -15,6 +15,7 @@ public class Ocean : MonoBehaviour
     ComputeBuffer normalBuffer;
     ComputeBuffer atomicNormalBuffer;
     ComputeBuffer gerstnerWaveBuffer;
+    ComputeBuffer positionsToRetrieveHeightFromBuffer;
 
     int kernelHandleFillVertices;
     int kernelHandleFillTriangles;
@@ -22,6 +23,7 @@ public class Ocean : MonoBehaviour
     int kernelHandleCalculateNormals;
     int kernelHandleCalculateNormalsSmooth;
     int kernelHandleNormalizeNormalsSmooth;
+    int kernelHandleRetrieveOceanHeight;
 
     int numberOfVertices;
     int numberOfTriangleIndices;
@@ -34,16 +36,16 @@ public class Ocean : MonoBehaviour
     GerstnerWaveSO[] gerstnerWavesSO;
     GerstnerWave[] gerstnerWaves;
 
-    Color shallowWaterColor;
+    Color shallowWaterColor; 
     Color deepWaterColor;
     float oceanColorBlendDepth;
 
     Color ambientLight;
     float ambientLightStrength;
-    float specularHighlightShininess;
+    float specularHighlightShininess; 
 
     Color fresnelColor;
-    float fresnelPower;
+    float fresnelPower; 
     Vector3 mainLightDirection;
     Vector4 mainLightColor;
 
@@ -51,6 +53,7 @@ public class Ocean : MonoBehaviour
     Color foamColor;
 
     bool applySmoothShading;
+    [SerializeField] Vector2[] pointsToRetrieveHeightFrom;
 
 
     private void Start() {
@@ -61,10 +64,14 @@ public class Ocean : MonoBehaviour
         InitializeBuffers();
         GenerateOceanMeshData();
         SetUpWaveGenerationMaterialBuffers();
+        computeShader.Dispatch(kernelHandleRetrieveOceanHeight, 1, 1, 1);
+        positionsToRetrieveHeightFromBuffer.GetData(pointsToRetrieveHeightFrom);
+        Debug.Log(pointsToRetrieveHeightFrom[0]);
     }
 
     private void Update() {
         DispatchSimulateWaves();
+        // Debug.Log(pointToRetrieveHeightFrom);
     }
 
     void ChangeOceanSODataOnce() {
@@ -97,6 +104,7 @@ public class Ocean : MonoBehaviour
         kernelHandleCalculateNormals = computeShader.FindKernel("CalculateNormals");
         kernelHandleCalculateNormalsSmooth = computeShader.FindKernel("CalculateNormalsSmooth");
         kernelHandleNormalizeNormalsSmooth = computeShader.FindKernel("NormalizeNormalsSmooth");
+        kernelHandleRetrieveOceanHeight = computeShader.FindKernel("RetrieveOceanHeight");
     }
 
     private void InitializeBuffers()
@@ -116,6 +124,8 @@ public class Ocean : MonoBehaviour
             atomicNormalBuffer = new ComputeBuffer(numberOfVertices * 3, sizeof(int));
         }
         
+        positionsToRetrieveHeightFromBuffer = new ComputeBuffer(pointsToRetrieveHeightFrom.Length, sizeof(float) * 2);
+        positionsToRetrieveHeightFromBuffer.SetData(pointsToRetrieveHeightFrom);
 
         // Set up the gerstner waves
         gerstnerWaves = new GerstnerWave[gerstnerWavesSO.Length];
@@ -131,6 +141,7 @@ public class Ocean : MonoBehaviour
         computeShader.SetBuffer(kernelHandleFillTriangles, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "gerstnerWaveBuffer", gerstnerWaveBuffer);
+        computeShader.SetBuffer(kernelHandleRetrieveOceanHeight, "positionsToRetrieveHeightFromBuffer", positionsToRetrieveHeightFromBuffer);
         if (!applySmoothShading) {
             computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
             computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);
@@ -249,10 +260,8 @@ public class Ocean : MonoBehaviour
         triangleBuffer.Dispose();
         normalBuffer.Dispose();
         gerstnerWaveBuffer.Dispose();
-        if (atomicNormalBuffer != null) {
-            atomicNormalBuffer.Dispose();
-        }
-        
+        positionsToRetrieveHeightFromBuffer.Dispose();
+        atomicNormalBuffer?.Dispose();
     }
 }
 

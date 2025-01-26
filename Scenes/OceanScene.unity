@@ -264,6 +264,8 @@ MonoBehaviour:
   computeShader: {fileID: 7200000, guid: 50259a1521c7bb14a94afcf2dd9956d1, type: 3}
   oceanMaterial: {fileID: 2100000, guid: 854cbaeec9512cc42916097fd7f6e984, type: 2}
   oceanSO: {fileID: 11400000, guid: 283e1dd715a99c64eb9341a45d3e360f, type: 2}
+  pointsToRetrieveHeightFrom:
+  - {x: 0, y: 0}
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
