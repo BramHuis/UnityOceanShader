@@ -12,4 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 688ce28b47025ad45bcafd9f99315d73, type: 3}
   m_Name: d
   m_EditorClassIdentifier: 
-  wave1: 0
+  toggle: 1
+  waveAmplitude: 1.5
+  waveSteepness: 0.19
+  wavePhaseShift: 0.28
+  waveLength: 0.1
+  waveSpeed: 0.19
+  windDirectionDegrees: 74
