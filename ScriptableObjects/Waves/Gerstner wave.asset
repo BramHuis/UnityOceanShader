@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 688ce28b47025ad45bcafd9f99315d73, type: 3}
-  m_Name: d
+  m_Name: Gerstner wave
   m_EditorClassIdentifier: 
   toggle: 1
-  waveAmplitude: 1.5
-  waveSteepness: 0.19
-  wavePhaseShift: 0.28
-  waveLength: 0.1
-  waveSpeed: 0.19
-  windDirectionDegrees: 74
+  waveAmplitude: 38.7
+  waveSteepness: 0
+  wavePhaseShift: 0
+  waveLength: 0.069
+  waveSpeed: 0.83
+  windDirectionDegrees: 307
