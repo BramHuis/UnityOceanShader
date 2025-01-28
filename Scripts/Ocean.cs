@@ -64,14 +64,17 @@ public class Ocean : MonoBehaviour
         InitializeBuffers();
         GenerateOceanMeshData();
         SetUpWaveGenerationMaterialBuffers();
-        computeShader.Dispatch(kernelHandleRetrieveOceanHeight, 1, 1, 1);
-        positionsToRetrieveHeightFromBuffer.GetData(pointsToRetrieveHeightFrom);
-        Debug.Log(pointsToRetrieveHeightFrom[0]);
+        
+        
     }
 
     private void Update() {
         DispatchSimulateWaves();
-        // Debug.Log(pointToRetrieveHeightFrom);
+        if (Input.GetKeyDown(KeyCode.Space)) {
+            computeShader.Dispatch(kernelHandleRetrieveOceanHeight, 1, 1, 1);
+            positionsToRetrieveHeightFromBuffer.GetData(pointsToRetrieveHeightFrom);
+            Debug.Log(pointsToRetrieveHeightFrom[0]);
+        }
     }
 
     void ChangeOceanSODataOnce() {
@@ -142,6 +145,7 @@ public class Ocean : MonoBehaviour
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "gerstnerWaveBuffer", gerstnerWaveBuffer);
         computeShader.SetBuffer(kernelHandleRetrieveOceanHeight, "positionsToRetrieveHeightFromBuffer", positionsToRetrieveHeightFromBuffer);
+        computeShader.SetBuffer(kernelHandleRetrieveOceanHeight, "vertexBuffer", vertexBuffer);
         if (!applySmoothShading) {
             computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
             computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);

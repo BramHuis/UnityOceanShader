@@ -187,6 +187,16 @@ void NormalizeNormalsSmooth(uint3 id : SV_DispatchThreadID) {
 
 [numthreads(1, 1, 1)]
 void RetrieveOceanHeight(uint3 id : SV_DispatchThreadID) {
-    positionsToRetrieveHeightFromBuffer[id.x] = (float2)(int2)(positionsToRetrieveHeightFromBuffer[id.x] - int2(100, 100));
+    float xStep = oceanWidth / (numberOfVerticesPerSide - 1);
+    float zStep = oceanLength / (numberOfVerticesPerSide - 1);
+
+    float2 xzPosition = positionsToRetrieveHeightFromBuffer[id.x].xy; // .xy because it is a 2D float and z can't be used
+    float xPositionAlongWidth = xzPosition.x / oceanWidth;
+    float zPositionAlongLength = xzPosition.y / oceanLength;
+
+    int xPositionIndex = floor(xPositionAlongWidth / xStep);
+    int zPositionIndex = floor(zPositionAlongLength / zStep);
+    int indexInPositionBuffer = zPositionIndex * numberOfVerticesPerSide + xPositionIndex;
+    positionsToRetrieveHeightFromBuffer[id.x].x = vertexBuffer[indexInPositionBuffer].y;
 }
 

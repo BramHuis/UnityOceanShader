@@ -22,9 +22,9 @@ MonoBehaviour:
   oceanColorBlendDepth: 30
   ambientLight: {r: 0.04111784, g: 0.5520255, b: 0.7924528, a: 1}
   ambientLightStrength: 0.1
-  specularHighlightShininess: 100
+  specularHighlightShininess: 10.5
   fresnelColor: {r: 0.62419903, g: 0.70587784, b: 0.7830189, a: 1}
-  fresnelPower: 2.74
+  fresnelPower: 0
   foamWidth: 1.05
   foamColor: {r: 1, g: 1, b: 1, a: 1}
   applySmoothShading: 1
