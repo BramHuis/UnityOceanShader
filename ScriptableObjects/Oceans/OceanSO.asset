@@ -14,17 +14,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   oceanWidth: 1000
   oceanLength: 1000
-  numberOfVerticesPerSide: 300
+  numberOfVerticesPerSide: 1223
   gerstnerWavesSO:
   - {fileID: 11400000, guid: 7061edbdd9af670418e8abdc2ce8534b, type: 2}
-  shallowWaterColor: {r: 0.017799927, g: 0.70456034, b: 0.754717, a: 1}
-  deepWaterColor: {r: 0.05206478, g: 0.5170379, b: 0.735849, a: 1}
-  oceanColorBlendDepth: 30
+  shallowWaterColor: {r: 0, g: 0.93582916, b: 1, a: 0.3882353}
+  deepWaterColor: {r: 0, g: 0.1688836, b: 0.6132076, a: 1}
+  oceanColorBlendDepth: 35
   ambientLight: {r: 0.04111784, g: 0.5520255, b: 0.7924528, a: 1}
   ambientLightStrength: 0.1
-  specularHighlightShininess: 10.5
+  specularHighlightShininess: 50
   fresnelColor: {r: 0.62419903, g: 0.70587784, b: 0.7830189, a: 1}
-  fresnelPower: 0
-  foamWidth: 1.05
+  fresnelPower: 3
+  foamWidth: 10
   foamColor: {r: 1, g: 1, b: 1, a: 1}
   applySmoothShading: 1

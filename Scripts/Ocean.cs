@@ -53,7 +53,9 @@ public class Ocean : MonoBehaviour
     Color foamColor;
 
     bool applySmoothShading;
-    [SerializeField] Vector2[] pointsToRetrieveHeightFrom;
+    [SerializeField] Transform[] transformsToRetrieveHeightFrom;
+    Vector2[] pointsToRetrieveHeightFrom;
+    int heightPointsArrayLength;
 
 
     private void Start() {
@@ -70,10 +72,21 @@ public class Ocean : MonoBehaviour
 
     private void Update() {
         DispatchSimulateWaves();
-        if (Input.GetKeyDown(KeyCode.Space)) {
-            computeShader.Dispatch(kernelHandleRetrieveOceanHeight, 1, 1, 1);
-            positionsToRetrieveHeightFromBuffer.GetData(pointsToRetrieveHeightFrom);
-            Debug.Log(pointsToRetrieveHeightFrom[0]);
+        
+        for (int i = 0; i < heightPointsArrayLength; i++) {
+            Vector3 transformPosition = transformsToRetrieveHeightFrom[i].position;
+            pointsToRetrieveHeightFrom[i] = new Vector2(transformPosition.x, transformPosition.z);
+        }
+
+        positionsToRetrieveHeightFromBuffer.SetData(pointsToRetrieveHeightFrom);
+        computeShader.GetKernelThreadGroupSizes(kernelHandleFillVertices, out dispatchGroupSizeX, out _, out _);
+        computeShader.Dispatch(kernelHandleRetrieveOceanHeight, Mathf.CeilToInt((float)heightPointsArrayLength / dispatchGroupSizeX), 1, 1);
+        positionsToRetrieveHeightFromBuffer.GetData(pointsToRetrieveHeightFrom);
+
+        for (int i = 0; i < heightPointsArrayLength; i++) {
+            Vector3 position = transformsToRetrieveHeightFrom[i].position;
+            position.y = pointsToRetrieveHeightFrom[i].x;
+            transformsToRetrieveHeightFrom[i].position = position;
         }
     }
 
@@ -127,8 +140,11 @@ public class Ocean : MonoBehaviour
             atomicNormalBuffer = new ComputeBuffer(numberOfVertices * 3, sizeof(int));
         }
         
-        positionsToRetrieveHeightFromBuffer = new ComputeBuffer(pointsToRetrieveHeightFrom.Length, sizeof(float) * 2);
-        positionsToRetrieveHeightFromBuffer.SetData(pointsToRetrieveHeightFrom);
+        heightPointsArrayLength = transformsToRetrieveHeightFrom.Length;
+        computeShader.SetInt("heightPointsArrayLength", heightPointsArrayLength);
+        pointsToRetrieveHeightFrom = new Vector2[heightPointsArrayLength];
+        positionsToRetrieveHeightFromBuffer = new ComputeBuffer(heightPointsArrayLength, sizeof(float) * 2);
+        
 
         // Set up the gerstner waves
         gerstnerWaves = new GerstnerWave[gerstnerWavesSO.Length];

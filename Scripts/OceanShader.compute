@@ -36,6 +36,7 @@ float time;
 #define PI 3.14159265359
 
 RWStructuredBuffer<float2> positionsToRetrieveHeightFromBuffer;
+int heightPointsArrayLength;
 
 
 [numthreads(32, 32 ,1)]
@@ -184,19 +185,66 @@ void NormalizeNormalsSmooth(uint3 id : SV_DispatchThreadID) {
     normalBuffer[index] = normalize(float3(0.0, 1.0, 0.0));
 }
 
+float GetTriangleArea(float2 a, float2 b, float2 c) {
+    return abs((a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) * 0.5);
+}
 
-[numthreads(1, 1, 1)]
+float4 ComputeBarycentricCoords(float2 p, float2 a, float2 b, float2 c) {
+    float area1 = GetTriangleArea(p, b, c);
+    float area2 = GetTriangleArea(p, c, a);
+    float area3 = GetTriangleArea(p, a, b);
+
+    float sumAreas = area1 + area2 + area3;
+    float alpha = area1 / sumAreas;
+    float beta = area2 / sumAreas;
+    float gamma = area3 / sumAreas;
+
+    return float4(area1 + area2 + area3, alpha, beta, gamma); // area, α, β, γ
+}
+
+[numthreads(32, 1, 1)]
 void RetrieveOceanHeight(uint3 id : SV_DispatchThreadID) {
-    float xStep = oceanWidth / (numberOfVerticesPerSide - 1);
-    float zStep = oceanLength / (numberOfVerticesPerSide - 1);
+    if(id.x >= (uint)heightPointsArrayLength) {return;}
 
     float2 xzPosition = positionsToRetrieveHeightFromBuffer[id.x].xy; // .xy because it is a 2D float and z can't be used
-    float xPositionAlongWidth = xzPosition.x / oceanWidth;
-    float zPositionAlongLength = xzPosition.y / oceanLength;
+    if (!(xzPosition.x >= oceanStartPosition.x && xzPosition.x <= oceanStartPosition.x + oceanWidth) ||
+        !(xzPosition.y >= oceanStartPosition.z && xzPosition.y <= oceanStartPosition.z + oceanLength)) {
+        return;
+    }
 
+    float xStep = oceanWidth / (numberOfVerticesPerSide - 1); // x distance between every vertex
+    float zStep = oceanLength / (numberOfVerticesPerSide - 1); // z distance between every vertex
+    
+    float xPositionAlongWidth = xzPosition.x - oceanStartPosition.x; // Object space, relative to ocean startPosition
+    float zPositionAlongLength = xzPosition.y -oceanStartPosition.z; // Object space, relative to ocean startPosition
+
+    // Retrieve the bottom left index
     int xPositionIndex = floor(xPositionAlongWidth / xStep);
     int zPositionIndex = floor(zPositionAlongLength / zStep);
-    int indexInPositionBuffer = zPositionIndex * numberOfVerticesPerSide + xPositionIndex;
-    positionsToRetrieveHeightFromBuffer[id.x].x = vertexBuffer[indexInPositionBuffer].y;
+
+    int indexInPositionBufferBottomLeft = zPositionIndex * numberOfVerticesPerSide + xPositionIndex;
+    int indexInPositionBufferTopLeft = indexInPositionBufferBottomLeft + numberOfVerticesPerSide;
+    int indexInPositionBufferTopRight = indexInPositionBufferTopLeft + 1;
+    int indexInPositionBufferBottomRight = indexInPositionBufferBottomLeft + 1;
+
+    float3 bottomLeft = vertexBuffer[indexInPositionBufferBottomLeft];
+    float3 topLeft = vertexBuffer[indexInPositionBufferTopLeft];
+    float3 topRight = vertexBuffer[indexInPositionBufferTopRight];
+    float3 bottomRight = vertexBuffer[indexInPositionBufferBottomRight];
+    
+    float totalTriangleArea1 = GetTriangleArea(bottomLeft.xz, topLeft.xz, topRight.xz); 
+    float totalTriangleArea2 = GetTriangleArea(bottomLeft.xz, topRight.xz, bottomRight.xz);
+
+    float4 triangleInfo1 = ComputeBarycentricCoords(xzPosition, bottomLeft.xz, topLeft.xz, topRight.xz);
+    float4 triangleInfo2 = ComputeBarycentricCoords(xzPosition, bottomLeft.xz, topRight.xz, bottomRight.xz);
+
+    if(abs(totalTriangleArea1 - triangleInfo1.x) < abs(totalTriangleArea2 - triangleInfo2.x)) {
+        positionsToRetrieveHeightFromBuffer[id.x].x =  (triangleInfo1.y * bottomLeft.y) + (triangleInfo1.z * topLeft.y) + (triangleInfo1.w * topRight.y);
+    } else {
+        positionsToRetrieveHeightFromBuffer[id.x].x =  (triangleInfo2.y * bottomLeft.y) + (triangleInfo2.z * topRight.y) + (triangleInfo2.w * bottomRight.y);
+    }
+
+    // positionsToRetrieveHeightFromBuffer[id.x].x = triangleInfo1.y;
+    // positionsToRetrieveHeightFromBuffer[id.x].y = triangleInfo1.z;
 }
 
