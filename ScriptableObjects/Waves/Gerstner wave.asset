@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: Gerstner wave
   m_EditorClassIdentifier: 
   toggle: 1
-  waveAmplitude: 16.2
-  waveSteepness: 0.444
+  waveAmplitude: 8.5
+  waveSteepness: 0.677
   wavePhaseShift: 0
-  waveLength: 0.012
-  waveSpeed: 0.38
-  windDirectionDegrees: 24
+  waveLength: 0.018
+  waveSpeed: 1
+  windDirectionDegrees: 40

@@ -5,7 +5,7 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "Gerstner wave", menuName = "Gerstner wave")]
 public class GerstnerWaveSO : ScriptableObject
 {
-    [Tooltip("Toggle")]
+    [Tooltip("Enable")]
     public bool toggle;
     [Tooltip("Wave amplitude"), Range(0.0f, 50.0f)]
     public float waveAmplitude;

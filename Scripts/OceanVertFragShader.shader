@@ -106,6 +106,7 @@ Shader "Unlit/OceanShader"
                 if(distanceThroughOcean < foamWidth) {
                     waterColor = foamColor;
                 }
+
                 return waterColor;
             }
 

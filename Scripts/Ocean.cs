@@ -1,8 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEditor;
-using UnityEngine.UI;
+using UnityEngine.Rendering;
 
 public class Ocean : MonoBehaviour
 {
@@ -53,6 +50,8 @@ public class Ocean : MonoBehaviour
     Color foamColor;
 
     bool applySmoothShading;
+
+    [SerializeField] bool enableHeightRetrieval;
     [SerializeField] Transform[] transformsToRetrieveHeightFrom;
     Vector2[] pointsToRetrieveHeightFrom;
     int heightPointsArrayLength;
@@ -66,27 +65,22 @@ public class Ocean : MonoBehaviour
         InitializeBuffers();
         GenerateOceanMeshData();
         SetUpWaveGenerationMaterialBuffers();
-        
-        
+
+        if (enableHeightRetrieval) {
+            OceanSOValidator.InitializePointHeightArray(heightPointsArrayLength);
+        }
     }
 
     private void Update() {
         DispatchSimulateWaves();
-        
-        for (int i = 0; i < heightPointsArrayLength; i++) {
-            Vector3 transformPosition = transformsToRetrieveHeightFrom[i].position;
-            pointsToRetrieveHeightFrom[i] = new Vector2(transformPosition.x, transformPosition.z);
-        }
-
-        positionsToRetrieveHeightFromBuffer.SetData(pointsToRetrieveHeightFrom);
-        computeShader.GetKernelThreadGroupSizes(kernelHandleFillVertices, out dispatchGroupSizeX, out _, out _);
-        computeShader.Dispatch(kernelHandleRetrieveOceanHeight, Mathf.CeilToInt((float)heightPointsArrayLength / dispatchGroupSizeX), 1, 1);
-        positionsToRetrieveHeightFromBuffer.GetData(pointsToRetrieveHeightFrom);
-
-        for (int i = 0; i < heightPointsArrayLength; i++) {
-            Vector3 position = transformsToRetrieveHeightFrom[i].position;
-            position.y = pointsToRetrieveHeightFrom[i].x;
-            transformsToRetrieveHeightFrom[i].position = position;
+        if (enableHeightRetrieval) {
+            ComputeTransformHeights();
+            float[] kaas = OceanSOValidator.GetPointHeights();
+            for (int i = 0; i < heightPointsArrayLength; i++) {
+                Vector3 position = transformsToRetrieveHeightFrom[i].position;
+                position.y = kaas[i];
+                transformsToRetrieveHeightFrom[i].position = position;
+            }
         }
     }
 
@@ -140,11 +134,14 @@ public class Ocean : MonoBehaviour
             atomicNormalBuffer = new ComputeBuffer(numberOfVertices * 3, sizeof(int));
         }
         
-        heightPointsArrayLength = transformsToRetrieveHeightFrom.Length;
-        computeShader.SetInt("heightPointsArrayLength", heightPointsArrayLength);
-        pointsToRetrieveHeightFrom = new Vector2[heightPointsArrayLength];
-        positionsToRetrieveHeightFromBuffer = new ComputeBuffer(heightPointsArrayLength, sizeof(float) * 2);
-        
+        if (enableHeightRetrieval) {
+            heightPointsArrayLength = transformsToRetrieveHeightFrom.Length;
+            computeShader.SetInt("heightPointsArrayLength", heightPointsArrayLength);
+            pointsToRetrieveHeightFrom = new Vector2[heightPointsArrayLength];
+            positionsToRetrieveHeightFromBuffer = new ComputeBuffer(heightPointsArrayLength, sizeof(float) * 2);
+            computeShader.SetBuffer(kernelHandleRetrieveOceanHeight, "positionsToRetrieveHeightFromBuffer", positionsToRetrieveHeightFromBuffer);
+            computeShader.SetBuffer(kernelHandleRetrieveOceanHeight, "vertexBuffer", vertexBuffer);
+        }
 
         // Set up the gerstner waves
         gerstnerWaves = new GerstnerWave[gerstnerWavesSO.Length];
@@ -160,8 +157,7 @@ public class Ocean : MonoBehaviour
         computeShader.SetBuffer(kernelHandleFillTriangles, "triangleBuffer", triangleBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "vertexBuffer", vertexBuffer);
         computeShader.SetBuffer(kernelHandleSimulateWaves, "gerstnerWaveBuffer", gerstnerWaveBuffer);
-        computeShader.SetBuffer(kernelHandleRetrieveOceanHeight, "positionsToRetrieveHeightFromBuffer", positionsToRetrieveHeightFromBuffer);
-        computeShader.SetBuffer(kernelHandleRetrieveOceanHeight, "vertexBuffer", vertexBuffer);
+        
         if (!applySmoothShading) {
             computeShader.SetBuffer(kernelHandleCalculateNormals, "vertexBuffer", vertexBuffer);
             computeShader.SetBuffer(kernelHandleCalculateNormals, "triangleBuffer", triangleBuffer);
@@ -254,6 +250,37 @@ public class Ocean : MonoBehaviour
         }
     }
 
+    private void ComputeTransformHeights() {
+        for (int i = 0; i < heightPointsArrayLength; i++) {
+            Vector3 transformPosition = transformsToRetrieveHeightFrom[i].position;
+            pointsToRetrieveHeightFrom[i] = new Vector2(transformPosition.x, transformPosition.z);
+        }
+
+        // Send data to the GPU buffer
+        positionsToRetrieveHeightFromBuffer.SetData(pointsToRetrieveHeightFrom);
+
+        // Dispatch the compute shader
+        computeShader.GetKernelThreadGroupSizes(kernelHandleFillVertices, out dispatchGroupSizeX, out _, out _);
+        computeShader.Dispatch(kernelHandleRetrieveOceanHeight, Mathf.CeilToInt((float)heightPointsArrayLength / dispatchGroupSizeX), 1, 1);
+
+        // Perform an async GPU readback to avoid blocking the pipeline
+        AsyncGPUReadback.Request(positionsToRetrieveHeightFromBuffer, OnCompleteReadback);
+    }
+
+    private void OnCompleteReadback(AsyncGPUReadbackRequest request) {
+        if (request.hasError)
+        {
+            Debug.LogError("GPU readback error occurred.");
+            return;
+        }
+
+        // Retrieve the data from the request
+        pointsToRetrieveHeightFrom = request.GetData<Vector2>().ToArray();
+
+        // Pass the data to the OceanSOValidator
+        OceanSOValidator.SetPointHeights(pointsToRetrieveHeightFrom);
+    }
+
     // Unity methods
     private void OnRenderObject() {
         SetUpWaveGenerationMaterialBuffers();
@@ -280,7 +307,7 @@ public class Ocean : MonoBehaviour
         triangleBuffer.Dispose();
         normalBuffer.Dispose();
         gerstnerWaveBuffer.Dispose();
-        positionsToRetrieveHeightFromBuffer.Dispose();
+        positionsToRetrieveHeightFromBuffer?.Dispose();
         atomicNormalBuffer?.Dispose();
     }
 }

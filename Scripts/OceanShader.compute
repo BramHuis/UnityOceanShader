@@ -238,13 +238,11 @@ void RetrieveOceanHeight(uint3 id : SV_DispatchThreadID) {
     float4 triangleInfo1 = ComputeBarycentricCoords(xzPosition, bottomLeft.xz, topLeft.xz, topRight.xz);
     float4 triangleInfo2 = ComputeBarycentricCoords(xzPosition, bottomLeft.xz, topRight.xz, bottomRight.xz);
 
+    // Store the height in the first position ofthe float2 (.x)
     if(abs(totalTriangleArea1 - triangleInfo1.x) < abs(totalTriangleArea2 - triangleInfo2.x)) {
         positionsToRetrieveHeightFromBuffer[id.x].x =  (triangleInfo1.y * bottomLeft.y) + (triangleInfo1.z * topLeft.y) + (triangleInfo1.w * topRight.y);
     } else {
         positionsToRetrieveHeightFromBuffer[id.x].x =  (triangleInfo2.y * bottomLeft.y) + (triangleInfo2.z * topRight.y) + (triangleInfo2.w * bottomRight.y);
     }
-
-    // positionsToRetrieveHeightFromBuffer[id.x].x = triangleInfo1.y;
-    // positionsToRetrieveHeightFromBuffer[id.x].y = triangleInfo1.z;
 }
 
